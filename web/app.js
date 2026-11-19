@@ -189,12 +189,45 @@ function layerColor(L) {
   if (L.layer_type === "active") return "#e03131";
   const f = MAT_COLORS[L.material]; return f ? f(L.x || 0, L.y || 0) : "#adb5bd";
 }
+/* Chemical formula for a layer's composition; alloy end points collapse to the binary / ternary
+   (AlGaAs x=0 -> GaAs, x=1 -> AlAs, InGaAsP y=0 -> InP, ...). */
+const EPS_X = 5e-4;
+function fx(v) { const s = (+v).toFixed(3); return s.endsWith("0") ? s.slice(0, -1) : s; }
+function matFormula(material, x, y) {
+  x = +x || 0; y = +y || 0;
+  const is0 = (v) => Math.abs(v) < EPS_X, is1 = (v, e = 1) => Math.abs(v - e) < EPS_X;
+  const tern = (a, b, rest, v, lo = 0, hi = 1) => (is0(v - lo) ? `${b}${rest}` : is1(v, hi) ? `${a}${rest}` : `${a}${fx(v)}${b}${rest}`);
+  switch (material) {
+    case "AlGaAs": case "AlGaAs_Gehrsitz": return tern("Al", "Ga", "As", x);
+    case "InGaAs": return tern("In", "Ga", "As", x);
+    case "AlGaN": return tern("Al", "Ga", "N", x);
+    case "InGaN": return tern("In", "Ga", "N", x);
+    case "AlGaInP": case "AlGaInP_Adachi":
+      return is0(x) ? "Ga0.51In0.49P" : is1(x, 0.51) ? "Al0.51In0.49P" : `Al${fx(x)}Ga${fx(0.51 - x)}In0.49P`;
+    case "InGaAsP":                                            // lattice matched to InP, Ga = y/2.197
+      return is0(y = x) ? "InP" : is1(y) ? "In0.53Ga0.47As" : `In${fx(1 - y / 2.197)}Ga${fx(y / 2.197)}As${fx(y)}P${fx(1 - y)}`;
+    case "InGaAsP_xy": {                                       // In(1-x)Ga(x)As(y)P(1-y)
+      const grp3 = is0(x) ? "In" : is1(x) ? "Ga" : `In${fx(1 - x)}Ga${fx(x)}`;
+      const grp5 = is0(y) ? "P" : is1(y) ? "As" : `As${fx(y)}P${fx(1 - y)}`;
+      return grp3 + grp5;
+    }
+    case "InAlGaAs":                                           // (Al0.48In0.52As)_X (Ga0.47In0.53As)_(1-X)
+      return is1(x) ? "Al0.48In0.52As" : is0(x) ? "In0.53Ga0.47As" : `In${fx(0.52 * x + 0.53 * (1 - x))}Al${fx(0.48 * x)}Ga${fx(0.47 * (1 - x))}As`;
+    default: return null;
+  }
+}
+const MODEL_TAG = { AlGaAs_Gehrsitz: "Gehrsitz", AlGaInP_Adachi: "Adachi" };
 function matText(L) {
-  const m = S.matByKey[L.material];
-  let t = L.material;
-  if (m && m.x_label) t += ` ${(+L.x).toFixed(2)}`;
+  const f = matFormula(L.material, L.x, L.y);
+  let t = f || L.material;
+  if (f && MODEL_TAG[L.material]) t += ` [${MODEL_TAG[L.material]}]`;
   if (L.index_mode === "fixed") t += " (fixed)";
   return t;
+}
+/* Is this layer name one the program made up (so it may follow composition changes)? */
+function isAutoName(L) {
+  const n = (L.name || "").trim();
+  return !n || n === L.material || n === S.matByKey[L.material]?.label || n === matFormula(L.material, L.x, L.y);
 }
 function renderStack() {
   const el = $("#stack"); if (!S.design) return;
@@ -365,9 +398,13 @@ $("#props").addEventListener("change", (e) => {
   if (f === "material") {
     const m = S.matByKey[v];
     if (m && it.layer_type !== "active" && ["dielectric", "metal", "oxide"].includes(m.default_type)) it.layer_type = m.default_type;
-    if (it.name === it.material || it.name === S.matByKey[it.material]?.label) it.name = v;
   }
   if (f === "thickness_unit") return;
+  if (f === "material" || f === "x" || f === "y") {           // auto-named layers follow the composition
+    const auto = isAutoName(it); it[f] = v;
+    if (auto) it.name = matFormula(it.material, it.x, it.y) || it.material;
+    changed(); return;
+  }
   it[f] = v; changed();
 });
 $("#props").addEventListener("click", (e) => {
