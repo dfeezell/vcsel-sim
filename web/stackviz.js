@@ -5,14 +5,14 @@
 /* ------------------------------------------------------------------ building blocks for the palette */
 const PALETTE = {
   layer: { label: "Layer", hint: "single layer (GaAs, quarter wave)", make: () => newLayer() },
-  dbr: { label: "DBR pairs", hint: "Al0.9GaAs / GaAs quarter-wave pair × 20", make: () => newGroup({ name: "DBR", repeats: 20, role: "none",
+  dbr: { label: "DBR", hint: "Al0.9GaAs / GaAs quarter-wave pair × 20", make: () => newGroup({ name: "DBR", repeats: 20, role: "none",
     children: [newLayer({ name: "Al0.90GaAs", x: 0.9 }), newLayer({ name: "GaAs", x: 0 })] }) },
-  qw: { label: "QW + barrier", hint: "8 nm GaAs barrier + 6 nm In0.2GaAs well × 3", make: () => newGroup({ name: "Active region", repeats: 3, role: "active",
+  qw: { label: "QWs", hint: "8 nm GaAs barrier + 6 nm In0.2GaAs well × 3", make: () => newGroup({ name: "Active region", repeats: 3, role: "active",
     children: [newLayer({ name: "GaAs barrier", thickness: 8, thickness_unit: "nm" }),
       newLayer({ name: "In0.2GaAs QW", material: "InGaAs", x: 0.2, thickness: 6, thickness_unit: "nm", layer_type: "active" })] }) },
-  spacer: { label: "Cavity spacer", hint: "Al0.3GaAs, quarter wave, marked for tuning", make: () => newLayer({ name: "Al0.30GaAs spacer", x: 0.3, marked: true }) },
-  group: { label: "Empty group", hint: "repeated block to drop layers into", make: () => newGroup({ name: "Group", repeats: 1, children: [] }) },
-  oxide: { label: "Oxide layer", hint: "AlOx aperture layer, 20 nm", make: () => newLayer({ name: "AlOx", material: "AlOx", thickness: 20, thickness_unit: "nm" }) },
+  spacer: { label: "Spacer", hint: "Al0.3GaAs, quarter wave, marked for tuning", make: () => newLayer({ name: "Al0.30GaAs spacer", x: 0.3, marked: true }) },
+  group: { label: "Group", hint: "repeated block to drop layers into", make: () => newGroup({ name: "Group", repeats: 1, children: [] }) },
+  oxide: { label: "Oxide", hint: "AlOx aperture layer, 20 nm", make: () => newLayer({ name: "AlOx", material: "AlOx", thickness: 20, thickness_unit: "nm" }) },
 };
 
 const DG = { drag: null, scale: "fit" };
@@ -170,11 +170,10 @@ function renderDiagramView() {
   const keep = $(".dg-blocks", host)?.scrollTop || 0;
   const pal = Object.entries(PALETTE).map(([k, p]) => `<span class="chip" draggable="true" data-tpl="${k}" title="Drag into the stack: ${esc(p.hint)}">${esc(p.label)}</span>`).join("");
   host.innerHTML = `<div class="dg-palette"><span class="dg-hint">Drag in:</span>${pal}
-      <span class="spacer"></span><label class="dg-hint">Heights <select id="dg-scale"><option value="fit">fit panel</option><option value="log">by thickness</option><option value="equal">equal</option></select></label>
-      <button class="pb" data-fig="png" title="Download a drawing of the stack as PNG">PNG</button><button class="pb" data-fig="svg" title="Download a drawing of the stack as SVG">SVG</button></div>
+</div>
     <div class="dg-body"><div class="dg-blocks">${diagramHTML(S.design, S.nodeInfo, { selKey: S.sel.join(","), editable: true })}</div>
       <div class="dg-strip" title="Whole stack to scale; click a layer to select it"></div></div>`;
-  $("#dg-scale", host).value = DG.scale;
+  $("#dg-scale").value = DG.scale;
   const blocks = $(".dg-blocks", host);
   if (DG.scale === "fit") fitBlocks(blocks);
   blocks.scrollTop = keep;
@@ -187,31 +186,41 @@ function renderDiagramView() {
 function fitBlocks(blocks) {
   blocks.classList.remove("fitted");
   const avail = blocks.clientHeight; if (blocks.scrollHeight <= avail + 1) return;
-  blocks.classList.add("fitted");
+  blocks.classList.add("fitted");                       // compact headers / margins first
   const layers = $$(".dg-layer", blocks);
-  for (let pass = 0; pass < 3 && blocks.scrollHeight > avail + 1; pass++) {
-    const hs = layers.map((l) => l.getBoundingClientRect().height);
-    const sum = hs.reduce((a, b) => a + b, 0); if (!sum) return;
-    const fixed = blocks.scrollHeight - sum;
-    const f = Math.max((avail - fixed - 2) / sum, 0.05);
+  const h0 = layers.map((l) => l.getBoundingClientRect().height);
+  const sum0 = h0.reduce((a, b) => a + b, 0); if (!sum0) return;
+  const target = avail - (blocks.scrollHeight - sum0) - 2;   // room left for the layer blocks
+  const N = layers.length;
+  // water-filling: heights = max(m, f*h0) with the largest readable minimum m that still fits
+  let tgt = target;
+  for (let pass = 0; pass < 8; pass++) {
+    const m = Math.min(13, Math.max(2, tgt / N));
+    const total = (f) => h0.reduce((a, h) => a + Math.max(m, f * h), 0);
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (total(mid) > tgt) hi = mid; else lo = mid; }
     layers.forEach((l, i) => {
-      const h = Math.max(11, hs[i] * f); l.style.height = h.toFixed(1) + "px";
-      l.classList.toggle("tiny", h < 17);
+      const h = Math.max(m, lo * h0[i]); l.style.height = h.toFixed(2) + "px";
+      l.classList.toggle("tiny", h < 16); l.classList.toggle("micro", h < 10);
     });
+    const over = blocks.scrollHeight - blocks.clientHeight;   // headers can change size once text is hidden
+    if (over <= 0) break;
+    tgt -= over + 2;
   }
 }
 function initStackViews() {
   const host = $("#stack-diagram");
-  host.addEventListener("click", (e) => { const b = e.target.closest("[data-fig]"); if (b) exportStackFigure(S.design, S.nodeInfo, b.dataset.fig, slug()); });
+  $("#dg-ctrls").innerHTML = `<select id="dg-scale" title="Block heights in the diagram"><option value="fit">Fit panel</option><option value="log">By thickness</option><option value="equal">Equal heights</option></select>
+    <button class="pb" data-fig="png" title="Download a labelled drawing of the stack as PNG">PNG</button><button class="pb" data-fig="svg" title="Download a labelled drawing of the stack as SVG">SVG</button>`;
+  $("#dg-scale").value = DG.scale;
+  $("#dg-ctrls").addEventListener("click", (e) => { const b = e.target.closest("[data-fig]"); if (b) exportStackFigure(S.design, S.nodeInfo, b.dataset.fig, slug()); });
+  $("#dg-scale").addEventListener("change", (e) => { DG.scale = e.target.value; try { localStorage.setItem("vcsel-dg-scale2", DG.scale); } catch (_) { /* */ } renderDiagramView(); });
   if (window.ResizeObserver) new ResizeObserver(() => {
     if (VIEW.mode !== "diagram" || !S.design) return;
     const sz = `${host.clientWidth}x${host.clientHeight}`; if (sz === VIEW.lastSize) return;
     clearTimeout(VIEW.rt); VIEW.rt = setTimeout(renderDiagramView, 120);
   }).observe(host);
   bindDiagram(host, { editable: true, onSelect: (p) => { S.sel = p; renderStack(); renderProps(); } });
-  host.addEventListener("change", (e) => {
-    if (e.target.id === "dg-scale") { DG.scale = e.target.value; try { localStorage.setItem("vcsel-dg-scale2", DG.scale); } catch (_) { /* */ } renderDiagramView(); }
-  });
   host.addEventListener("dragstart", (e) => {
     const chip = e.target.closest(".chip[data-tpl]"); if (!chip) return;
     DG.drag = { kind: "tpl", tpl: chip.dataset.tpl }; e.dataTransfer.effectAllowed = "copy"; e.dataTransfer.setData("text/plain", chip.dataset.tpl);

@@ -168,16 +168,26 @@ function runAnalysis(explicit = true) {
 }
 
 /* ------------------------------------------------------------------ stack view */
-const MAT_COLORS = { AlGaAs: (x) => `hsl(${140 - 90 * x}, ${55 + 10 * x}%, ${62 - 10 * x}%)`, InGaAs: () => "#e8590c",
-  InGaAsP: () => "#9c36b5", InP: () => "#cc5de8", InAlGaAs: (x) => `hsl(${290 - 40 * x}, 45%, ${55 + 10 * x}%)`,
-  AlGaInP: (x) => `hsl(${40 - 30 * x}, 70%, ${62 + 15 * x}%)`, InGaAsP_xy: () => "#862e9c", AlGaAs_Gehrsitz: (x) => `hsl(${210 - 20 * x}, 55%, ${45 + 35 * x}%)`, AlGaInP_Adachi: (x) => `hsl(${30 - 30 * x}, 70%, ${58 + 15 * x}%)`, GaN: () => "#1c7ed6", AlN: () => "#74c0fc", SiO2: () => "#e9ecef",
+// colour ramps chosen for contrast between neighbouring layers (e.g. GaAs / Al0.2GaAs / AlAs)
+function ramp(stops, t) {
+  t = Math.min(1, Math.max(0, +t || 0));
+  let k = 0; while (k < stops.length - 2 && t > stops[k + 1][0]) k++;
+  const [t0, c0] = stops[k], [t1, c1] = stops[k + 1]; const f = t1 > t0 ? (t - t0) / (t1 - t0) : 0;
+  const h = (c, i) => parseInt(c.slice(1 + 2 * i, 3 + 2 * i), 16);
+  return "#" + [0, 1, 2].map((i) => Math.round(h(c0, i) + f * (h(c1, i) - h(c0, i))).toString(16).padStart(2, "0")).join("");
+}
+const AL_RAMP = [[0, "#2f6fd0"], [0.15, "#22a6b3"], [0.3, "#37b24d"], [0.5, "#94d82d"], [0.7, "#fcc419"], [0.9, "#ffa94d"], [1, "#fd7e14"]];
+const MAT_COLORS = { AlGaAs: (x) => ramp(AL_RAMP, x), AlGaAs_Gehrsitz: (x) => ramp(AL_RAMP, x), InGaAs: (x) => ramp([[0, "#2f6fd0"], [0.1, "#9c36b5"], [0.3, "#c2255c"]], x),
+  InGaAsP: (y) => ramp([[0, "#e599f7"], [1, "#5f3dc4"]], y), InGaAsP_xy: (x, y) => ramp([[0, "#e599f7"], [1, "#5f3dc4"]], y), InP: () => "#f783ac",
+  InAlGaAs: (x) => ramp([[0.3, "#5f3dc4"], [1, "#d0bfff"]], x), AlGaInP: (x) => ramp([[0, "#a61e4d"], [0.51, "#ffc9c9"]], x), AlGaInP_Adachi: (x) => ramp([[0, "#862e9c"], [0.51, "#fcc2d7"]], x),
+  GaN: () => "#1864ab", AlN: () => "#a5d8ff", SiO2: () => "#e9ecef",
   Si3N4: () => "#ced4da", Ta2O5: () => "#ffd43b", TiO2: () => "#fab005", TiO2_rutile: () => "#f08c00", HfO2: () => "#ffe066",
-  Nb2O5: () => "#fcc419", Al2O3: () => "#d0bfff", Al2O3_film: () => "#d0bfff", AlOx: () => "#868e96", Air: () => "#ffffff",
+  Nb2O5: () => "#fcc419", Al2O3: () => "#d0bfff", Al2O3_film: () => "#d0bfff", AlOx: () => "#495057", Air: () => "#ffffff",
   Generic: () => "#adb5bd", Au: () => "#d4a017", Ag: () => "#c0c0c0", Ti: () => "#7d8597", Cr: () => "#6c757d", Pt: () => "#a5a5a5" };
 function layerColor(L) {
   if (L.color) return L.color;
   if (L.layer_type === "active") return "#e03131";
-  const f = MAT_COLORS[L.material]; return f ? f(L.x || 0) : "#adb5bd";
+  const f = MAT_COLORS[L.material]; return f ? f(L.x || 0, L.y || 0) : "#adb5bd";
 }
 function matText(L) {
   const m = S.matByKey[L.material];
@@ -398,7 +408,7 @@ function plotField() {
     traces.push({ x: f.z.map((z) => xmap(z, P)), y: f.E2, name: "|E|²", type: "scatter", mode: "lines", line: { color: "#d9480f", width: 1.5 },
       yaxis: "y", hovertemplate: "|E|² = %{y:.5g}<extra></extra>" });
   }
-  const shapes = [];
+  const shapes = []; const annotations = [];
   if ($("#f-shade").checked) {
     for (const L of P.layers) {
       let color = null;
@@ -412,17 +422,21 @@ function plotField() {
     for (const role of ["top_dbr", "bottom_dbr"]) {
       const ls = P.layers.filter((l) => l.role === role); if (!ls.length) continue;
       const a = xmap(ls[0].z0, P), b = xmap(ls[ls.length - 1].z1, P);
-      shapes.push({ type: "rect", xref: "x", yref: "paper", x0: Math.min(a, b), x1: Math.max(a, b), y0: 0.985, y1: 1, fillcolor: "rgba(31,95,174,0.35)", line: { width: 0 } });
+      shapes.push({ type: "rect", xref: "x", yref: "paper", x0: Math.min(a, b), x1: Math.max(a, b), y0: 1.012, y1: 1.05, fillcolor: "rgba(31,95,174,0.22)", line: { width: 0 } });
+      annotations.push({ xref: "x", yref: "paper", x: (a + b) / 2, y: 1.031, text: role === "top_dbr" ? "Top DBR" : "Bottom DBR", showarrow: false, yanchor: "middle", font: { size: 11, color: "#1f5fae" } });
     }
   }
+  // headroom above the index trace so the legend sits in clear space at the top left
+  const nv = P.n.filter((v) => Number.isFinite(v)); const nmin = Math.min(...nv), nmax = Math.max(...nv), ns = Math.max(nmax - nmin, 0.05);
+  const nRange = [nmin - 0.05 * ns, nmax + 0.28 * ns];
   const xl = `${$("#f-origin").value === "top" ? "Depth from top surface" : "Height above substrate"} (${units === "um" ? "µm" : "nm"})`;
   const normTxt = { bottom: "normalized to substrate", top: "normalized to exit medium", peak: "normalized to peak" }[$("#f-norm").value];
   const layout = {
-    font: PLOT_FONT, margin: { l: 70, r: 70, t: 36, b: 56 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
+    font: PLOT_FONT, margin: { l: 70, r: 70, t: 54, b: 56 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
     xaxis: { title: { text: xl }, zeroline: false, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
-    yaxis: { title: { text: A && show !== "n" ? `|E|² (${normTxt})` : "Refractive index n" }, zeroline: false, showline: true, mirror: !(A && show === "both"), linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", rangemode: A && show !== "n" ? "tozero" : "normal" },
-    yaxis2: { title: { text: "Refractive index n", font: { color: "#1f5fae" } }, overlaying: "y", side: "right", showgrid: false, showline: true, linecolor: "#444", ticks: "outside", tickfont: { color: "#1f5fae" } },
-    legend: { orientation: "h", x: 0, y: 1.08 }, shapes,
+    yaxis: { title: { text: A && show !== "n" ? `|E|² (${normTxt})` : "Refractive index n" }, zeroline: false, showline: true, mirror: !(A && show === "both"), linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", rangemode: A && show !== "n" ? "tozero" : "normal", range: A && show !== "n" ? undefined : nRange },
+    yaxis2: { title: { text: "Refractive index n", font: { color: "#1f5fae" } }, overlaying: "y", side: "right", showgrid: false, showline: true, linecolor: "#444", ticks: "outside", tickfont: { color: "#1f5fae" }, range: nRange },
+    legend: { orientation: "h", x: 0.01, y: 0.99, xanchor: "left", yanchor: "top", bgcolor: "rgba(255,255,255,0.88)", bordercolor: "#ccd2db", borderwidth: 1 }, shapes, annotations,
     title: { text: A ? `${esc(S.design.name)} — λ = ${A.results.wavelength.toFixed(3)} nm, g<sub>th</sub> = ${A.results.threshold_gain.toFixed(1)} cm⁻¹` : esc(S.design.name), font: { size: 13 }, x: 0.01, xanchor: "left", y: 0.995 },
   };
   renderKpis();                       // before plotting, so the plot gets its final height
