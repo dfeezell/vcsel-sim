@@ -113,6 +113,26 @@ def ingaasp(lam, y, _unused=0.0):
     return afromowitz(_E(lam), E0, Ed, eg_ingaasp(y))
 
 
+def eg_inalgaas(X, _=0.0):
+    """300 K band gap of (Al0.48In0.52As)_X (Ga0.47In0.53As)_(1-X) on InP (eV): end points
+    0.748 eV (Coldren & Corzine Table 1.1) and 1.45 eV, small bowing 0.05 eV fitted to the
+    1.4 K photoluminescence gaps of Mondry et al. (1992). Approximate; used for display."""
+    return 0.748 * (1 - X) + 1.45 * X - 0.05 * X * (1 - X)
+
+
+def inalgaas(lam, X, _unused=0.0):
+    """(Al0.48In0.52As)_X (Ga0.47In0.53As)_(1-X) lattice matched to InP. First-order Sellmeier fit of
+    M. J. Mondry, D. I. Babic, J. E. Bowers, L. A. Coldren, IEEE Photon. Technol. Lett. 4, 627 (1992):
+        n^2 = A + B lam^2 / (lam^2 - C^2),  A = 9.689 - 1.012X,  B = 1.590 - 0.376X,
+        C = 1102.4 - 702.0X + 330.4X^2 (nm),  0.3 < X < 1, below the band gap."""
+    lam = np.asarray(lam, dtype=float)
+    A = 9.689 - 1.012 * X
+    B = 1.590 - 0.376 * X
+    C = 1102.4 - 702.0 * X + 330.4 * X * X
+    n2 = A + B * lam ** 2 / (lam ** 2 - C ** 2)
+    return np.sqrt(np.maximum(n2, 1.0)) + 0j
+
+
 def inp(lam, x=0.0, y=0.0):
     """InP: Sellmeier from Handbook of Optics (data of G. D. Pettit & W. J. Turner,
     J. Appl. Phys. 36, 2081 (1965)), valid 0.95-10 um."""
@@ -237,6 +257,12 @@ register("InGaAsP", ingaasp, "InGaAsP / InP (lattice matched)", "InP-based", "y 
                    "Eg = 1.35 - 0.72y + 0.12y^2 (Nahory et al.).",
          notes="In(1-x)Ga(x)As(y)P(1-y) lattice matched to InP, x ~ y/2.2. y = 0 is InP, y = 1 is In0.53Ga0.47As. "
                "Complex above the band gap (approximate).")
+register("InAlGaAs", inalgaas, "InAlGaAs / InP (lattice matched)", "InP-based", "X (AlInAs fraction)", None,
+         x_range=(0.3, 1.0), bandgap=eg_inalgaas, valid_nm=(800, 2000),
+         reference="M. J. Mondry, D. I. Babic, J. E. Bowers, L. A. Coldren, IEEE Photon. Technol. Lett. 4, 627 (1992) "
+                   "(Sellmeier fit, Eq. 5). Band gap: interpolation with 0.05 eV bowing (approximate).",
+         notes="(Al0.48In0.52As)_X(Ga0.47In0.53As)_(1-X): Al = 0.48X, Ga = 0.47(1-X). X = 1 is Al0.48In0.52As. "
+               "Fit valid for 0.3 < X < 1 and below the band gap (real index only). For In0.53Ga0.47As wells use InGaAsP with y = 1.")
 register("InP", inp, "InP", "InP-based",
          reference="Handbook of Optics Vol. 2 (1994) Sellmeier, data of G. D. Pettit and W. J. Turner, "
                    "J. Appl. Phys. 36, 2081 (1965).", notes="Valid 950 nm - 10 um.", valid_nm=(950, 10000),

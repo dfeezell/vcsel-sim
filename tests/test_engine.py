@@ -127,3 +127,11 @@ def test_exact_round_trip_model():
     K = cavity.cavity_report(laser.Model(s), ex)["coldren"]
     assert K["modal_gain"] == pytest.approx(K["alpha_i"] + K["alpha_m"], rel=1e-12)
     assert K["alt"]["rt_model"] == "linear"
+
+
+def test_inalgaas_mondry():
+    # Al0.48In0.52As (X = 1) at 1550 nm from the Mondry et al. (1992) Sellmeier fit
+    assert materials.index("InAlGaAs", 1550.0, 1.0).real == pytest.approx(3.1997, abs=1e-3)
+    # index rises toward the GaInAs end and is above InP at the same wavelength
+    assert materials.index("InAlGaAs", 1550.0, 0.3).real > materials.index("InAlGaAs", 1550.0, 1.0).real
+    assert materials.bandgap("InAlGaAs", 1.0) == pytest.approx(1.45)

@@ -14,7 +14,7 @@ while the Python engine downloads into the browser).
 - **Stack builder.** Layers from the exit medium (top) to the substrate, with nested groups that repeat
   *N* times, so DBR pairs and quantum wells are a single number to change. Thickness in nm or in waves
   (optical thickness at the design wavelength).
-- **Materials with references.** AlGaAs, InGaAs, InGaAsP, InP, GaN, AlN, AlGaN, InGaN, SiO₂, Si₃N₄, Ta₂O₅, TiO₂, HfO₂,
+- **Materials with references.** AlGaAs, InGaAs, InGaAsP, InAlGaAs, InP, GaN, AlN, AlGaN, InGaN, SiO₂, Si₃N₄, Ta₂O₅, TiO₂, HfO₂,
   Nb₂O₅, Al₂O₃, AlOx, metals (Au, Ag, Ti, Cr, Pt), or a fixed n + ik. The *Materials* tab plots each model and lists its source.
 - **Threshold.** Lasing wavelength and threshold material gain, solved exactly (outgoing waves only).
 - **Gain and loss budget.** Round-trip gain, internal loss, and transmission through the top and bottom; gain enhancement
