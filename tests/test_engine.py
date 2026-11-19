@@ -103,3 +103,12 @@ def test_cavity_report_ece577():
     assert K["modal_gain"] == pytest.approx(K["alpha_i"] + K["alpha_m"], rel=1e-9)   # self-consistency
     assert K["alpha_m"] == pytest.approx(K["alpha_m_R"], rel=1e-9)
     assert abs(2 * K["chi"] - round(2 * K["chi"])) < 0.15        # close to a half-wave multiple
+
+
+def test_dbr_designer_matches_analytic():
+    r = json.loads(api.dbr_design(json.dumps({
+        "lambda0": 980, "pairs": 20, "first": {"material": "AlGaAs", "x": 0.9}, "second": {"material": "AlGaAs", "x": 0},
+        "incident": {"material": "AlGaAs", "x": 0}, "exit": {"material": "AlGaAs", "x": 0}})))
+    assert r["ok"]
+    assert r["at_design"]["R"] == pytest.approx(r["R_analytic"], rel=1e-9)
+    assert r["pairs_needed"]["0.99"] == next(i + 1 for i, v in enumerate(r["R_vs_pairs"]) if v >= 0.99)

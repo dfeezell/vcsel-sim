@@ -131,6 +131,13 @@ input[type=number]:focus, input[type=text]:focus, select:focus { outline: 2px so
 .plot { flex: 1; min-height: 420px; }
 .plot.short { flex: none; height: 380px; }
 #plot-refl { flex: none; height: 500px; min-height: 0; }
+.dbr-medium { display: inline-flex; align-items: center; gap: 4px; }
+.dbr-medium b { font-weight: 500; color: var(--ink); }
+.dbr-medium select { max-width: 150px; }
+.dbr-medium input { width: 62px; }
+.dbr-bottom { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.3fr); gap: 12px; padding: 4px 12px; align-items: start; }
+.dbr-pairs-plot { height: 300px; }
+@media (max-width: 1300px) { .dbr-bottom { grid-template-columns: 1fr; } }
 .note { color: var(--muted); font-size: 12px; padding: 0 14px 12px; margin: 0; }
 
 .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; padding: 8px 12px 0; }

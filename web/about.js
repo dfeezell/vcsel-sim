@@ -31,6 +31,19 @@ This defines the effective cavity length L = Γ<sub>enh</sub> L<sub>a</sub>/Γ. 
 <span class="eq">α<sub>i</sub> = RT loss / 2L,   α<sub>m</sub> = RT transmission / 2L,   Γ g<sub>th</sub> = α<sub>i</sub> + α<sub>m</sub></span>
 These follow the definitions in the course notes (“Vertical Gain and Loss Definitions”): R<sub>up/down</sub> = exp(−RT transmission up/down), and
 the external differential efficiency is η<sub>d</sub> = η<sub>i</sub> × RT transmission / RT gain (slope efficiency η<sub>d</sub> hν/q in W/A).</p>
+<h3>Cavity length, penetration depth and confinement (course notes)</h3>
+<p>The Results tab also follows the ECE 577 notes (“Vertical Gain and Loss Definitions”) and Coldren &amp; Corzine Appendix 7.
+Each DBR's penetration depth comes from the exact quarter-wave expressions</p>
+<span class="eq">m<sub>eff</sub> = tanh[m ln(n<sub>2</sub>/n<sub>1</sub>)] / tanh[ln(n<sub>2</sub>/n<sub>1</sub>)],   L<sub>eff</sub> = ½ m<sub>eff</sub> Λ [1/(1+r²) − 1/(2m<sub>eff</sub>)]</span>
+<p>measured from the first low-index layer. A high-index mirror layer that touches the cavity is counted in the cavity. The effective length is then
+<span class="eq">L = L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>,   Γ = Γ<sub>enh</sub> L<sub>a</sub> / L</span>
+from which the modal gain, ⟨α<sub>i</sub>⟩, α<sub>m</sub>, R<sub>up</sub>, R<sub>down</sub> and the cavity optical thickness χ = L n<sub>eff</sub>/λ<sub>0</sub> follow.
+The Ch. 3 approximations (tanh(2mr)/2κ, Λ/4r, λ/4Δn) and a penetration depth taken from the computed reflection phase, ½|dφ/dβ|, are shown for comparison.
+This Γ is not the same quantity as the energy-weighted Γ further down the table. The two can differ by 10–20%.</p>
+<h3>DBR design tab</h3>
+<p>Designs a quarter-wave mirror on its own. Choose the incident medium, the two layers and the exit medium, and set the number of pairs.
+The tab shows the spectrum, R at λ<sub>0</sub> (transfer matrix and analytic), the stopband width, the penetration depth, and how many pairs reach a target reflectance.
+<b>Insert into stack</b> adds the mirror to the design as a group.</p>
 <h3>Mirror reflectance</h3>
 <p>Reflectance spectra are computed for the <b>passive, as-grown</b> structure: active layers carry no gain. There is therefore no lasing pole and no
 huge spike at the cavity wavelength. “Top DBR (from cavity)” is the reflectance of everything above the cavity, seen from the cavity layer next to the mirror.

@@ -90,6 +90,7 @@
     <nav class="tabs" id="tabs">
       <button data-tab="field" class="active">Field &amp; index</button>
       <button data-tab="refl">Reflectance</button>
+      <button data-tab="dbr">DBR design</button>
       <button data-tab="results">Results</button>
       <button data-tab="layers">Layer table</button>
       <button data-tab="materials">Materials</button>
@@ -130,6 +131,35 @@
       <div id="plot-refl" class="plot"></div>
       <div id="refl-table"></div>
       <p class="note">Mirror reflectance is computed for the as-grown (passive) structure: active layers carry no gain, so there is no threshold-gain spike. "From cavity" means light incident from the cavity layer next to the mirror (taken as lossless), with the phase referenced to the mirror interface.</p>
+    </div>
+
+    <div class="tab" id="tab-dbr">
+      <div class="plot-opts">
+        <label>λ<sub>0</sub> <input type="number" id="dbr-lam" step="0.1"> nm</label>
+        <label>Pairs <input type="number" id="dbr-pairs" value="20" min="1" max="200" step="1" style="width:60px"></label>
+        <span class="dbr-medium" data-k="incident"><b>Incident</b> <select class="dbr-mat"></select> <input type="number" class="dbr-x" step="0.01"></span>
+        <span class="dbr-medium" data-k="first"><b>1st layer</b> <select class="dbr-mat"></select> <input type="number" class="dbr-x" step="0.01"></span>
+        <span class="dbr-medium" data-k="second"><b>2nd layer</b> <select class="dbr-mat"></select> <input type="number" class="dbr-x" step="0.01"></span>
+        <span class="dbr-medium" data-k="exit"><b>Exit</b> <select class="dbr-mat"></select> <input type="number" class="dbr-x" step="0.01"></span>
+      </div>
+      <div class="plot-opts">
+        <label>From <input type="number" id="dbr-min" step="1"> to <input type="number" id="dbr-max" step="1"> nm</label>
+        <label>Plot <select id="dbr-mode"><option value="R">Reflectance R</option><option value="phase">Phase of r</option><option value="loss">1 − R (log)</option></select></label>
+        <button class="btn" id="btn-dbr-swap" title="Swap the order of the two layers">⇅ Swap layers</button>
+        <span class="spacer"></span>
+        <label>Insert as <select id="dbr-role"><option value="bottom_dbr">Bottom DBR</option><option value="top_dbr">Top DBR</option><option value="none">plain group</option></select></label>
+        <button class="btn primary" id="btn-dbr-insert" title="Add this mirror to the layer stack, below the selected item">Insert into stack</button>
+        <button class="btn sm" data-export="plot-dbr" data-fmt="png">PNG</button>
+        <button class="btn sm" data-export="plot-dbr" data-fmt="svg">SVG</button>
+        <button class="btn sm" id="btn-dbr-csv">CSV</button>
+      </div>
+      <div id="dbr-kpis" class="kpis"></div>
+      <div id="plot-dbr" class="plot short"></div>
+      <div class="dbr-bottom">
+        <div id="dbr-table"></div>
+        <div id="plot-dbr-pairs" class="dbr-pairs-plot"></div>
+      </div>
+      <p class="note">Quarter-wave stack at λ<sub>0</sub>, normal incidence, light arriving from the incident medium onto the 1st layer. For a mirror seen from a GaAs cavity, use GaAs as the incident medium and put the low-index layer first. Penetration depth: Coldren &amp; Corzine eqs. A7.13 and A7.25, with the Ch. 3 approximations for comparison. Analytic R uses ((n<sub>0</sub> − Y)/(n<sub>0</sub> + Y))², Y = (n<sub>1</sub>/n<sub>2</sub>)<sup>2m</sup> n<sub>exit</sub>.</p>
     </div>
 
     <div class="tab" id="tab-results">

@@ -20,6 +20,11 @@ while the Python engine downloads into the browser).
 - **Gain and loss budget.** Round-trip gain, internal loss, and transmission through the top and bottom; gain enhancement
   factor; confinement factor; modal gain; α<sub>i</sub>, α<sub>m</sub>; mirror reflectances; external efficiency and
   slope efficiency; photon lifetime.
+- **Course-notes cavity model.** DBR penetration depths (Coldren & Corzine A7.25, with the Ch. 3 approximations and a
+  reflection-phase check), cavity length L = L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>, confinement factor Γ = Γ<sub>enh</sub>L<sub>a</sub>/L,
+  R<sub>up</sub>/R<sub>down</sub>, and the cavity optical thickness.
+- **DBR design tab.** Design a quarter-wave mirror on its own: spectrum, R (numeric and analytic), stopband, penetration depth,
+  pairs needed for a target R. Insert it into the stack with one click.
 - **Field plot.** |E|² and refractive index versus depth, normalized to the substrate, the top, or the peak.
 - **Mirror reflectance.** The passive (as-grown) spectrum of each DBR seen from the cavity, or of the whole wafer, as
   R, phase, 1 − R or T. There is no artificial spike at the lasing wavelength.

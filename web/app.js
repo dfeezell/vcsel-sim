@@ -65,7 +65,7 @@ async function boot() {
     S.api = S.py.pyimport("vcsel_sim.api");
     S.materials = call("material_catalog").materials;
     S.materials.forEach((m) => (S.matByKey[m.key] = m));
-    initMaterialsTab();
+    initMaterialsTab(); initDbrTab();
     let start = "gaas_980";
     try { const saved = localStorage.getItem("vcsel-design"); if (saved) { setDesign(JSON.parse(saved), false); start = null; } } catch (e) { /* ignore */ }
     if (start) loadTemplate(start);
@@ -139,6 +139,7 @@ function runAll() {
   const tab = $(".tabs button.active").dataset.tab;
   runAnalysis(false);
   if (tab === "refl") runRefl();
+  if (tab === "dbr" && !S.dbr) runDbr();
   if (tab === "layers") renderLayerTable();
 }
 function runAnalysis(explicit = true) {
@@ -251,7 +252,7 @@ $("#stack").addEventListener("change", (e) => {
   const g = getAt(path); g.repeats = Math.max(0, parseInt(e.target.value) || 0); changed();
 });
 
-function stackAction(act) {
+function stackAction(act, payload) {
   const path = S.sel; const inStack = path[0] === "stack" && path.length > 1;
   const sel = inStack ? getAt(path) : null;
   const list = inStack ? parentList(path) : S.design.stack;
@@ -264,6 +265,7 @@ function stackAction(act) {
       insertAfter(newLayer(tmpl)); break;
     }
     case "add-group": insertAfter(newGroup({ name: "DBR", repeats: 10 })); break;
+    case "insert": insertAfter(payload); break;
     case "dup": if (!sel) return; insertAfter(stripIds(sel)); break;
     case "del": if (!sel) return; list.splice(idx, 1); S.sel = list.length ? [...base, Math.min(idx, list.length - 1)] : (base.length > 1 ? base : ["top"]); break;
     case "up": if (!sel || idx === 0) return; [list[idx - 1], list[idx]] = [list[idx], list[idx - 1]]; S.sel = [...base, idx - 1]; break;
@@ -425,7 +427,7 @@ if (window.ResizeObserver) {
   const ro = new ResizeObserver((entries) => entries.forEach((en) => {
     const el = en.target; if (el.data && el.offsetParent) Plotly.Plots.resize(el);
   }));
-  ["#plot-field", "#plot-refl", "#plot-mat"].forEach((sel) => { const el = $(sel); if (el) ro.observe(el); });
+  ["#plot-field", "#plot-refl", "#plot-mat", "#plot-dbr", "#plot-dbr-pairs"].forEach((sel) => { const el = $(sel); if (el) ro.observe(el); });
 }
 function kpi(k, v, u = "") { return `<div class="kpi"><div class="k">${k}</div><div class="v">${v}<span class="u">${u}</span></div></div>`; }
 function renderKpis() {
@@ -598,6 +600,106 @@ function plotMaterial() {
     yaxis: { title: { text: "n" }, showline: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
     yaxis2: { title: { text: "k" }, overlaying: "y", side: "right", showgrid: false, showline: true, linecolor: "#444", ticks: "outside" },
     legend: { orientation: "h", x: 0.75, y: 1.1 }, shapes }, PLOT_CONFIG);
+}
+
+
+/* ------------------------------------------------------------------ DBR design tab */
+const DBR_DEFAULT = { incident: { material: "AlGaAs", x: 0 }, first: { material: "AlGaAs", x: 0.9 }, second: { material: "AlGaAs", x: 0 }, exit: { material: "AlGaAs", x: 0 } };
+function initDbrTab() {
+  $$(".dbr-medium").forEach((w) => {
+    const k = w.dataset.k, d = DBR_DEFAULT[k];
+    w.querySelector(".dbr-mat").innerHTML = matOptions(d.material);
+    w.querySelector(".dbr-x").value = d.x;
+    w.querySelector(".dbr-mat").addEventListener("change", () => { dbrSyncX(w); runDbr(); });
+    w.querySelector(".dbr-x").addEventListener("change", runDbr);
+    dbrSyncX(w);
+  });
+  ["#dbr-lam", "#dbr-pairs", "#dbr-min", "#dbr-max"].forEach((sel) => $(sel).addEventListener("change", runDbr));
+  $("#dbr-mode").addEventListener("change", plotDbr);
+  $("#btn-dbr-swap").addEventListener("click", () => {
+    const a = $('.dbr-medium[data-k="first"]'), b = $('.dbr-medium[data-k="second"]');
+    const ma = a.querySelector(".dbr-mat").value, xa = a.querySelector(".dbr-x").value;
+    a.querySelector(".dbr-mat").value = b.querySelector(".dbr-mat").value; a.querySelector(".dbr-x").value = b.querySelector(".dbr-x").value;
+    b.querySelector(".dbr-mat").value = ma; b.querySelector(".dbr-x").value = xa;
+    dbrSyncX(a); dbrSyncX(b); runDbr();
+  });
+  $("#btn-dbr-insert").addEventListener("click", () => {
+    if (!S.dbr) runDbr();
+    if (!S.dbr) return;
+    const g = JSON.parse(JSON.stringify(S.dbr.group)); g.role = $("#dbr-role").value;
+    g.name = { bottom_dbr: "N-DBR", top_dbr: "P-DBR", none: "DBR" }[g.role];
+    stackAction("insert", g);
+    const note = +$("#dbr-lam").value !== S.design.design_wavelength ? ` (layers are in waves, so in the stack they are quarter-wave at λdesign = ${S.design.design_wavelength} nm)` : "";
+    toast(`Inserted ${g.name}: ${g.repeats} pairs${note}`, false, 6000);
+  });
+  $("#btn-dbr-csv").addEventListener("click", () => {
+    if (!S.dbr) return;
+    const D = S.dbr, sp = D.spectrum;
+    let t = `# quarter-wave DBR at ${$("#dbr-lam").value} nm, ${$("#dbr-pairs").value} pairs\nwavelength_nm,R,T,phase_deg\n`;
+    for (let i = 0; i < sp.wavelength.length; i++) t += `${sp.wavelength[i]},${sp.R[i]},${sp.T[i]},${sp.phase_deg[i]}\n`;
+    t += `\npairs,R_at_lambda0\n` + D.R_vs_pairs.map((r, i) => `${i + 1},${r}`).join("\n") + "\n";
+    download(`dbr_${$("#dbr-pairs").value}pairs.csv`, t);
+  });
+}
+function dbrSyncX(w) {
+  const m = S.matByKey[w.querySelector(".dbr-mat").value]; const x = w.querySelector(".dbr-x");
+  const generic = m && m.key === "Generic";
+  x.style.display = m && (m.x_label || generic) ? "" : "none";
+  x.title = generic ? "refractive index n" : (m && m.x_label) || "";
+  x.placeholder = generic ? "n" : "x";
+  if (generic && +x.value < 1) x.value = 3.0;
+}
+function dbrSpec(k) {
+  const w = $(`.dbr-medium[data-k="${k}"]`); const mat = w.querySelector(".dbr-mat").value; const v = +w.querySelector(".dbr-x").value || 0;
+  const m = S.matByKey[mat];
+  if (mat === "Generic") return { material: mat, index_mode: "fixed", n_real: v || 3, name: `n=${v}` };
+  const lbl = mat === "AlGaAs" ? (v === 0 ? "GaAs" : v === 1 ? "AlAs" : `Al${v}GaAs`) : (m && m.x_label ? `${mat} ${v}` : mat);
+  return { material: mat, x: v, name: lbl };
+}
+function runDbr() {
+  if (!$("#dbr-lam").value) $("#dbr-lam").value = S.design.design_wavelength;
+  const lam = +$("#dbr-lam").value;
+  if (!$("#dbr-min").value || !$("#dbr-max").value) { $("#dbr-min").value = Math.round(lam * 0.8); $("#dbr-max").value = Math.round(lam * 1.2); }
+  const o = { lambda0: lam, pairs: +$("#dbr-pairs").value, first: dbrSpec("first"), second: dbrSpec("second"), incident: dbrSpec("incident"), exit: dbrSpec("exit"),
+    lambda_min: +$("#dbr-min").value, lambda_max: +$("#dbr-max").value, points: 2001 };
+  try { S.dbr = call("dbr_design", JSON.stringify(o)); } catch (e) { S.dbr = null; toast(e.message, true); return; }
+  plotDbr();
+}
+function plotDbr() {
+  const D = S.dbr; if (!D) return;
+  const mode = $("#dbr-mode").value; const sp = D.spectrum; const lam0 = +$("#dbr-lam").value;
+  const y = mode === "R" ? sp.R : mode === "phase" ? sp.phase_deg : sp.R.map((r) => (r == null ? null : Math.max(1 - r, 1e-12)));
+  const yt = { R: "Reflectance R", phase: "Phase of r (deg)", loss: "1 − R" }[mode];
+  Plotly.react($("#plot-dbr"), [{ x: sp.wavelength, y, type: "scatter", mode: "lines", line: { color: "#1f5fae", width: 1.8 }, hovertemplate: "%{x:.2f} nm<br>%{y:.6g}<extra></extra>" }], {
+    font: PLOT_FONT, margin: { l: 70, r: 24, t: 30, b: 52 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff", showlegend: false,
+    title: { text: `${$("#dbr-pairs").value}-pair DBR at λ<sub>0</sub> = ${lam0} nm${sp.R.some((r) => r == null) ? " (blank where the incident medium absorbs)" : ""}`, font: { size: 13 }, x: 0.01, xanchor: "left" },
+    xaxis: { title: { text: "Wavelength (nm)" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false },
+    yaxis: { title: { text: yt }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false, type: mode === "loss" ? "log" : "linear", range: mode === "R" ? [0, 1.02] : undefined, exponentformat: "power" },
+    shapes: [{ type: "line", x0: lam0, x1: lam0, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],
+  }, PLOT_CONFIG);
+  const P = D.penetration || {};
+  $("#dbr-kpis").innerHTML = [
+    kpi("R at λ<sub>0</sub> (TMM / analytic)", `${fmt(D.at_design.R, 7)} / ${fmt(D.R_analytic, 7)}`),
+    kpi("1 − R at λ<sub>0</sub>", fmt(1 - D.at_design.R, 4)),
+    kpi("Stopband (half max / analytic)", `${fmt(D.stopband.width_nm, 4)} / ${fmt(D.stopband_analytic, 4)}`, "nm"),
+    kpi("n<sub>1</sub> / n<sub>2</sub> at λ<sub>0</sub>", `${fmt(D.n_first, 5)} / ${fmt(D.n_second, 5)}`),
+    kpi("d<sub>1</sub> / d<sub>2</sub> (λ/4)", `${fmt(D.d_first, 5)} / ${fmt(D.d_second, 5)}`, "nm"),
+    kpi("Period Λ / total", `${fmt(D.period, 5)} nm / ${fmt(D.total_thickness / 1000, 4)}`, "µm"),
+    kpi("Penetration L<sub>eff</sub> (A7.25)", fmt(P.L_eff, 5), "nm"),
+    kpi("tanh(2mr)/2κ · Λ/4r", `${fmt(P.L_eff_tanh, 5)} · ${fmt(P.L_eff_long, 5)}`, "nm"),
+    kpi("r · m<sub>eff</sub> · κ", `${fmt(P.r, 4)} · ${fmt(P.m_eff, 4)} · ${fmt(P.kappa_cm, 4)}`, "κ in cm⁻¹"),
+  ].join("");
+  const need = Object.entries(D.pairs_needed);
+  $("#dbr-table").innerHTML = `<table class="t"><thead><tr><th>Target R at λ<sub>0</sub></th><th class="r">pairs needed</th></tr></thead><tbody>${
+    need.map(([t, k]) => `<tr><td>${t}</td><td class="n">${k == null ? `more than ${D.R_vs_pairs.length}` : k}</td></tr>`).join("")}</tbody></table>`;
+  const ks = D.R_vs_pairs.map((_, i) => i + 1);
+  Plotly.react($("#plot-dbr-pairs"), [{ x: ks, y: D.R_vs_pairs.map((r) => Math.max(1 - r, 1e-12)), type: "scatter", mode: "lines+markers", marker: { size: 4 }, line: { color: "#d9480f", width: 1.5 }, hovertemplate: "%{x} pairs: 1−R = %{y:.3g}<extra></extra>" }], {
+    font: PLOT_FONT, margin: { l: 64, r: 16, t: 28, b: 46 }, showlegend: false, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
+    title: { text: "1 − R at λ<sub>0</sub> versus number of pairs", font: { size: 12 }, x: 0.01, xanchor: "left" },
+    xaxis: { title: { text: "pairs" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
+    yaxis: { type: "log", title: { text: "1 − R" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", exponentformat: "power" },
+    shapes: [{ type: "line", x0: +$("#dbr-pairs").value, x1: +$("#dbr-pairs").value, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],
+  }, PLOT_CONFIG);
 }
 
 /* ------------------------------------------------------------------ tabs, menus, files */

@@ -196,3 +196,80 @@ def node_info(design_json):
                    "top": {"n": nt.real, "k": nt.imag}, "substrate": {"n": nsub.real, "k": nsub.imag}})
     except Exception as e:
         return fail(e)
+
+
+def _layer_spec(d, name, thickness=None, unit="waves"):
+    from .structure import Layer
+    L = Layer(name=d.get("name") or name, material=d.get("material", "Generic"), x=float(d.get("x", 0) or 0),
+              y=float(d.get("y", 0) or 0), index_mode=d.get("index_mode", "model"),
+              n_real=float(d.get("n_real", 3.5) or 3.5), n_imag=float(d.get("n_imag", 0) or 0),
+              absorption=float(d.get("absorption", 0) or 0), layer_type=d.get("layer_type", "undoped"))
+    if thickness is not None:
+        L.thickness, L.thickness_unit = float(thickness), unit
+    if L.material in ("Generic",):
+        L.index_mode = "fixed"
+    return L
+
+
+def dbr_design(options_json):
+    """Stand-alone quarter-wave DBR designer.
+
+    options: {lambda0, pairs, first: {material,x,...}, second: {...}, incident: {...}, exit: {...},
+              lambda_min, lambda_max, points, targets: [0.99, ...], role, name}
+    `first` is the layer next to the incident medium. Both are quarter-wave at lambda0
+    unless `first_waves` / `second_waves` are given.
+    """
+    try:
+        from .structure import Group, Layer
+        from .cavity import coldren_leff
+        o = json.loads(options_json) if isinstance(options_json, str) else options_json
+        lam0 = float(o.get("lambda0", 980))
+        m = max(int(o.get("pairs", 20)), 1)
+        A = _layer_spec(o["first"], "first", o.get("first_waves", 0.25))
+        B = _layer_spec(o["second"], "second", o.get("second_waves", 0.25))
+        inc = _layer_spec(o.get("incident", {"material": "Air"}), "incident")
+        ext = _layer_spec(o.get("exit", {"material": "AlGaAs", "x": 0}), "exit")
+
+        def build(npairs):
+            return Structure(name="DBR", design_wavelength=lam0, top=inc, substrate=ext,
+                             stack=[Group(name=o.get("name", "DBR"), repeats=npairs, children=[A, B])])
+
+        s = build(m)
+        lo = float(o.get("lambda_min", lam0 * 0.8))
+        hi = float(o.get("lambda_max", lam0 * 1.2))
+        spec = laser.reflectance_spectrum(s, lo, hi, int(o.get("points", 2001)), "full_top")
+        st = laser.stopband(spec)
+        at = laser.reflectance_spectrum(s, lam0, lam0, 1, "full_top")
+        nB = float(np.real(np.atleast_1d(B.index(lam0))[0]))
+        nA = float(np.real(np.atleast_1d(A.index(lam0))[0]))
+        n0 = float(np.real(np.atleast_1d(inc.index(lam0))[0]))
+        ns = float(np.real(np.atleast_1d(ext.index(lam0))[0]))
+        nH, nL = max(nA, nB), min(nA, nB)
+        dA, dB = A.physical_thickness(lam0), B.physical_thickness(lam0)
+        # analytic quarter-wave reflectance (lossless, real indices)
+        Y = (nA / nB) ** (2 * m) * ns
+        R_an = ((n0 - Y) / (n0 + Y)) ** 2
+        dl_stop = 4 * lam0 / math.pi * math.asin((nH - nL) / (nH + nL)) if nH > nL else 0.0
+        pen = coldren_leff(nL, nH, m, dA + dB) if nH > nL else {}
+        # R at lambda0 versus number of pairs
+        M = int(o.get("max_pairs", max(2 * m, 40)))
+        Rm = []
+        for k in range(1, M + 1):
+            Rm.append(float(laser.reflectance_spectrum(build(k), lam0, lam0, 1, "full_top")["R"][0]))
+        need = {}
+        for t in o.get("targets", [0.99, 0.995, 0.999, 0.9995, 0.9999]):
+            k = next((i + 1 for i, r in enumerate(Rm) if r >= t), None)
+            need[str(t)] = k
+        grp = Group(name=o.get("name", "DBR"), repeats=m, role=o.get("role", "none"), children=[A, B])
+        return ok({
+            "spectrum": {"wavelength": spec["wavelength"], "R": spec["R"], "T": spec["T"],
+                         "phase_deg": spec["phase_deg"]},
+            "stopband": st, "at_design": {"R": float(at["R"][0]), "T": float(at["T"][0]),
+                                          "phase_deg": float(at["phase_deg"][0])},
+            "n_first": nA, "n_second": nB, "n_incident": n0, "n_exit": ns,
+            "d_first": dA, "d_second": dB, "period": dA + dB, "total_thickness": m * (dA + dB),
+            "R_analytic": R_an, "stopband_analytic": dl_stop, "penetration": pen,
+            "R_vs_pairs": Rm, "pairs_needed": need, "group": grp.to_dict(),
+        })
+    except Exception as e:
+        return fail(e)
