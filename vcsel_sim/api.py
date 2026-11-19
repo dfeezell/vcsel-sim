@@ -10,7 +10,7 @@ import math
 
 import numpy as np
 
-from . import materials, laser, vrt, export, templates
+from . import materials, laser, vrt, export, templates, cavity
 from .structure import Structure
 
 
@@ -81,9 +81,14 @@ def run_analysis(design_json, options_json="{}"):
                           spacing_active=float(o.get("spacing_active", 0.1)),
                           internal_efficiency=float(o.get("internal_efficiency", 1.0)))
         prof = a.field
+        res = a.summary()
+        try:
+            res["cavity"] = cavity.cavity_report(laser.Model(s), a)
+        except Exception as e:                       # never let the extra report break the analysis
+            res["cavity"] = {"complete": False, "note": f"Cavity-length report failed: {e}"}
         # decimate passive regions for plotting if huge
         fld = {"z": prof.z, "E2": prof.E2, "n": prof.n}
-        return ok({"results": a.summary(), "field": fld,
+        return ok({"results": res, "field": fld,
                    "profile": export.index_profile(s, a.wavelength)})
     except Exception as e:
         return fail(e)

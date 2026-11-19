@@ -75,3 +75,31 @@ def test_api_returns_json_without_nan():
     d = (EX / "gaas_980nm_vcsel.vcsel.json").read_text()
     out = api.run_analysis(d, "{}")
     assert "NaN" not in out and json.loads(out)["ok"]
+
+
+def test_coldren_penetration_depth_limits():
+    from vcsel_sim.cavity import coldren_leff
+    n1, n2, lam = 2.95, 3.52, 980.0
+    period = lam / 4 / n1 + lam / 4 / n2
+    big = coldren_leff(n1, n2, 400, period)
+    r = (n2 - n1) / (n2 + n1)
+    # long-mirror limit of A7.25: m_eff -> 1/tanh(ln(n2/n1)) = (x^2+1)/(x^2-1), x = n2/n1
+    x = n2 / n1
+    m_inf = (x * x + 1) / (x * x - 1)
+    assert big["L_eff"] == pytest.approx(0.5 * period * (m_inf / (1 + r * r) - 0.5), rel=1e-9)
+    assert big["L_eff"] == pytest.approx(period / (4 * r) - period / 4, rel=0.01)   # ~ Lambda/4r - Lambda/4
+    assert big["L_eff_tanh"] == pytest.approx(period / (4 * r), rel=1e-6)
+
+
+def test_cavity_report_ece577():
+    from vcsel_sim.vrt import read_vrt
+    from vcsel_sim import cavity
+    s = read_vrt((EX / "ECE577_Final_Project_DF.vrt").read_bytes())
+    a = laser.analyze(s)
+    rep = cavity.cavity_report(laser.Model(s), a)
+    K = rep["coldren"]
+    assert rep["complete"]
+    assert K["L"] == pytest.approx(rep["L_cav"] + K["L_eff_top"] + K["L_eff_bottom"])
+    assert K["modal_gain"] == pytest.approx(K["alpha_i"] + K["alpha_m"], rel=1e-9)   # self-consistency
+    assert K["alpha_m"] == pytest.approx(K["alpha_m_R"], rel=1e-9)
+    assert abs(2 * K["chi"] - round(2 * K["chi"])) < 0.15        # close to a half-wave multiple

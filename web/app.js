@@ -4,7 +4,7 @@
  */
 "use strict";
 
-const PY_FILES = ["__init__.py", "_tables.py", "materials.py", "structure.py", "tmm.py", "laser.py",
+const PY_FILES = ["__init__.py", "_tables.py", "materials.py", "structure.py", "tmm.py", "laser.py", "cavity.py",
   "vrt.py", "export.py", "templates.py", "api.py"];
 
 const LAYER_TYPES = [["undoped", "undoped"], ["n-type", "n-type"], ["p-type", "p-type"], ["active", "active (gain)"],
@@ -498,15 +498,15 @@ const RES = [
     ["rt_loss", "Round-trip internal loss", "", "absorption in all passive layers", "round trip loss"],
     ["rt_transmission", "Round-trip transmission (mirror loss)", "", "power leaving top + bottom", "round trip transmission"],
     ["rt_transmission_top", "   … through top", "", "", "transmission up"], ["rt_transmission_bottom", "   … through bottom", "", "", "transmission down"]]],
-  ["Losses per unit length (using L)", [
+  ["Losses per unit length (using the energy-based L below)", [
     ["alpha_i", "Internal loss α<sub>i</sub>", "cm⁻¹", "RT loss / 2L"], ["alpha_m", "Mirror loss α<sub>m</sub>", "cm⁻¹", "RT transmission / 2L"],
     ["alpha_m_top", "   … top mirror", "cm⁻¹"], ["alpha_m_bottom", "   … bottom mirror", "cm⁻¹"],
     ["R_top", "Effective R<sub>top</sub>", "", "exp(−RT transmission up)"], ["R_bottom", "Effective R<sub>bottom</sub>", "", "exp(−RT transmission down)"]]],
   ["Confinement", [
     ["active_thickness", "Active thickness L<sub>a</sub>", "nm", "sum of active layers", "active thickness (nm)"],
     ["enhancement", "Gain enhancement Γ<sub>enh</sub>", "", "⟨|E|²⟩ over active ÷ local standing-wave mean", "gain enhancement"],
-    ["confinement", "Longitudinal confinement Γ", "", "∫<sub>a</sub> n²|E|² ÷ ∫<sub>stack</sub> n²|E|²"],
-    ["effective_length", "Effective cavity length L", "nm", "Γ<sub>enh</sub> L<sub>a</sub> / Γ"]]],
+    ["confinement", "Confinement Γ (energy-weighted)", "", "∫<sub>a</sub> n²|E|² ÷ ∫<sub>stack</sub> n²|E|²; the course-notes Γ = Γ<sub>enh</sub>L<sub>a</sub>/L is further up"],
+    ["effective_length", "Effective cavity length L (energy-based)", "nm", "Γ<sub>enh</sub> L<sub>a</sub> / Γ(energy-weighted)"]]],
   ["Efficiency", [
     ["internal_efficiency", "Internal efficiency η<sub>i</sub>", "", "input"],
     ["ext_eff", "External differential efficiency", "", "η<sub>i</sub> × RT transmission / RT gain", "external efficiency"],
@@ -518,6 +518,30 @@ const RES = [
     ["E2_top", "|E|² in exit medium", "", "", "E2 top"], ["E2_bottom", "|E|² in substrate", "", "", "E2 bottom"],
     ["avg_index_rms", "Average index (|E|²-weighted rms)", "", "Vertical's 'avg core index'"], ["avg_cavity_index", "Average cavity index", "", "thickness-weighted, between DBR groups"]]],
 ];
+function cavityRows(C, showV) {
+  const span = showV ? 5 : 4;
+  let h = `<tr class="sec"><td colspan="${span}">Cavity length and confinement (course notes, Coldren &amp; Corzine App. 7)</td></tr>`;
+  if (!C || !C.complete) return h + `<tr><td colspan="${span}" class="def">${esc(C?.note || "Not available.")}</td></tr>`;
+  const K = C.coldren, KV = C.coldren_vertical_enh || {}, P = C.phase || {};
+  const row = (label, v, unit, def, vv) => `<tr><td>${label}</td><td class="n">${fmt(v, 6)}</td><td>${unit}</td>${showV ? `<td class="n">${vv === undefined ? "" : fmt(vv, 6)}</td>` : ""}<td class="def">${def}</td></tr>`;
+  const half = Math.round(2 * K.chi) / 2;
+  h += row("Cavity length L<sub>cav</sub>", C.L_cav, "nm", "physical thickness between the DBRs (active + barriers + SCH)");
+  h += row(`Top DBR penetration L<sub>eff,1</sub>`, K.L_eff_top, "nm", "Coldren A7.25 (exact quarter-wave expression); see the mirror table below");
+  h += row(`Bottom DBR penetration L<sub>eff,2</sub>`, K.L_eff_bottom, "nm", "Coldren A7.25");
+  h += row("Effective cavity length L", K.L, "nm", "L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>");
+  h += row("Confinement factor Γ", K.confinement, "", "Γ<sub>enh</sub> L<sub>a</sub> / L (Vertical column: Vertical's Γ<sub>enh</sub> and round-trip values)", KV.confinement);
+  h += row("Modal gain Γg<sub>th</sub>", K.modal_gain, "cm⁻¹", "= ⟨α<sub>i</sub>⟩ + α<sub>m</sub>", KV.modal_gain);
+  h += row("Internal loss ⟨α<sub>i</sub>⟩", K.alpha_i, "cm⁻¹", `RT loss / 2L (small-argument form, as Vertical). Exponential form −ln(1−RT loss)/2L = ${fmt(K.alpha_i_exp, 5)}`, KV.alpha_i);
+  h += row("Mirror loss α<sub>m</sub>", K.alpha_m, "cm⁻¹", `RT transmission / 2L = (1/L) ln(1/√(R<sub>up</sub>R<sub>down</sub>)). Exponential form ${fmt(K.alpha_m_exp, 5)}`, KV.alpha_m);
+  h += row("R<sub>up</sub>", K.R_up, "", `exp(−trans. up). Passive top-DBR reflectance from the cavity: ${fmt(C.R_top_passive, 7)}`, KV.R_up);
+  h += row("R<sub>down</sub>", K.R_down, "", `exp(−trans. down). Passive bottom-DBR reflectance from the cavity: ${fmt(C.R_bottom_passive, 7)}`, KV.R_down);
+  h += row("Cavity optical thickness χ", K.chi, "λ", `L n<sub>eff</sub>/λ<sub>0</sub>, n<sub>eff</sub> = average core index. Nearest half-wave multiple: ${half}`, KV.chi);
+  if (P.L !== undefined) h += row("L using phase penetration depths", P.L, "nm", `check: depths from the computed mirror reflection phase, ½|dφ/dβ| (top ${fmt(P.L_eff_top, 5)}, bottom ${fmt(P.L_eff_bottom, 5)} nm); Γ = ${fmt(P.confinement, 5)}`);
+  h += `<tr class="sec"><td colspan="${span}">DBR penetration depths at λ<sub>las</sub></td></tr>`;
+  h += `<tr><td colspan="${span}" style="padding:0 0 6px"><table class="t"><thead><tr><th>Mirror</th><th class="r">periods m</th><th class="r">Λ (nm)</th><th class="r">n<sub>1</sub> / n<sub>2</sub></th><th class="r">r</th><th class="r">m<sub>eff</sub></th><th class="r">κ (cm⁻¹)</th><th class="r">L<sub>eff</sub> A7.25</th><th class="r">tanh(2mr)/2κ</th><th class="r">Λ/4r</th><th class="r">λ/4Δn</th><th class="r">phase ½|dφ/dβ|</th></tr></thead><tbody>${
+    [C.top, C.bottom].map((m) => `<tr><td>${esc(m.name)}${m.cavity_side_high ? ' <span class="badge">high-index layer next to cavity counted in L<sub>cav</sub></span>' : ""}${m.layers_per_period !== 2 ? ` <span class="badge">${m.layers_per_period} layers/period: n<sub>1</sub>, n<sub>2</sub> = min, max</span>` : ""}</td><td class="n">${m.periods}</td><td class="n">${fmt(m.period_nm, 6)}</td><td class="n">${fmt(m.n_low, 5)} / ${fmt(m.n_high, 5)}</td><td class="n">${fmt(m.r, 5)}</td><td class="n">${fmt(m.m_eff, 5)}</td><td class="n">${fmt(m.kappa_cm, 5)}</td><td class="n"><b>${fmt(m.L_eff, 5)}</b></td><td class="n">${fmt(m.L_eff_tanh, 5)}</td><td class="n">${fmt(m.L_eff_long, 5)}</td><td class="n">${fmt(m.L_eff_lambda, 5)}</td><td class="n">${fmt(m.L_eff_phase, 5)}</td></tr>`).join("")}</tbody></table></td></tr>`;
+  return h;
+}
 function renderResults() {
   const el = $("#results"); const A = S.analysis;
   if (!A) { el.innerHTML = `<p class="note" style="padding-top:12px">${hasActive() ? "Run the analysis (▶ Analyze)." : "No active layer in the structure. Set Layer type = active on the gain layers."}</p>`; return; }
@@ -528,6 +552,7 @@ function renderResults() {
     for (const [key, label, unit, def, vkey] of rows) {
       h += `<tr><td>${label}</td><td class="n">${fmt(r[key], 6)}</td><td>${unit || ""}</td>${showV ? `<td class="n">${vkey && V[vkey] !== undefined ? fmt(V[vkey], 6) : ""}</td>` : ""}<td class="def">${def || ""}</td></tr>`;
     }
+    if (sec.startsWith("Round-trip budget")) h += cavityRows(r.cavity, showV);
   }
   h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">Internal loss by region</td></tr>`;
   for (const b of r.loss_breakdown) h += `<tr><td>${esc(b.region)}</td><td class="n">${fmt(b.rt_loss, 5)}</td><td>per round trip</td>${showV ? "<td></td>" : ""}<td class="def">${fmt(b.alpha_cm, 4)} cm⁻¹ of α<sub>i</sub></td></tr>`;

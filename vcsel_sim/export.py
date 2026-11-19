@@ -84,10 +84,15 @@ def csv(s: Structure, kind, payload=None):
     if kind == "results":
         res = payload["results"]
         flat = []
+        def nested(prefix, d):
+            for kk, vv in d.items():
+                if isinstance(vv, dict):
+                    nested(f"{prefix}{kk}: ", vv)
+                elif not isinstance(vv, (list, tuple)):
+                    flat.append([f"{prefix}{kk}", vv])
         for k, v in res.items():
             if isinstance(v, dict):
-                for kk, vv in v.items():
-                    flat.append([f"vertical: {kk}", vv])
+                nested(f"{k}: ", v)
             elif isinstance(v, list) and v and isinstance(v[0], dict):
                 for item in v:
                     flat.append([f"loss: {item.get('region')}", item.get("rt_loss")])
