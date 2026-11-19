@@ -167,7 +167,7 @@ function runAnalysis(explicit = true) {
 /* ------------------------------------------------------------------ stack view */
 const MAT_COLORS = { AlGaAs: (x) => `hsl(${140 - 90 * x}, ${55 + 10 * x}%, ${62 - 10 * x}%)`, InGaAs: () => "#e8590c",
   InGaAsP: () => "#9c36b5", InP: () => "#cc5de8", InAlGaAs: (x) => `hsl(${290 - 40 * x}, 45%, ${55 + 10 * x}%)`,
-  AlGaInP: (x) => `hsl(${40 - 30 * x}, 70%, ${62 + 15 * x}%)`, InGaAsP_xy: () => "#862e9c", GaN: () => "#1c7ed6", AlN: () => "#74c0fc", SiO2: () => "#e9ecef",
+  AlGaInP: (x) => `hsl(${40 - 30 * x}, 70%, ${62 + 15 * x}%)`, InGaAsP_xy: () => "#862e9c", AlGaInP_Adachi: (x) => `hsl(${30 - 30 * x}, 70%, ${58 + 15 * x}%)`, GaN: () => "#1c7ed6", AlN: () => "#74c0fc", SiO2: () => "#e9ecef",
   Si3N4: () => "#ced4da", Ta2O5: () => "#ffd43b", TiO2: () => "#fab005", TiO2_rutile: () => "#f08c00", HfO2: () => "#ffe066",
   Nb2O5: () => "#fcc419", Al2O3: () => "#d0bfff", Al2O3_film: () => "#d0bfff", AlOx: () => "#868e96", Air: () => "#ffffff",
   Generic: () => "#adb5bd", Au: () => "#d4a017", Ag: () => "#c0c0c0", Ti: () => "#7d8597", Cr: () => "#6c757d", Pt: () => "#a5a5a5" };

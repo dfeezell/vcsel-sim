@@ -142,3 +142,13 @@ def test_algainp_and_ingaasp_match_vertical():
     assert materials.index("AlGaInP", 980.0, 0.0).real == pytest.approx(3.25885, abs=2e-5)
     assert materials.index("AlGaInP", 980.0, 0.3).real == pytest.approx(3.12045, abs=2e-5)
     assert materials.bandgap("InGaAsP_xy", 0.42, 0.2) == pytest.approx(1.53714, abs=1e-5)
+
+
+def test_algainp_adachi():
+    # Adachi et al. (1994): A + B = eps_inf = 9.39 - 0.85z, and n(Ga0.5In0.5P) near the gap above 3.5
+    lam_long = 1e6
+    for x in (0.0, 0.255, 0.51):
+        z = x / 0.51
+        assert materials.index("AlGaInP_Adachi", lam_long, x).real ** 2 == pytest.approx(9.39 - 0.85 * z, abs=0.01)
+    assert materials.index("AlGaInP_Adachi", 1033.0, 0.0).real == pytest.approx(3.1977, abs=1e-3)
+    assert 3.5 < materials.index("AlGaInP_Adachi", 650.0, 0.0).real < 3.6

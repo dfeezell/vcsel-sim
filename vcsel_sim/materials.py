@@ -131,6 +131,21 @@ def algainp(lam, x, _unused=0.0):
     return np.sqrt(1 + E0 * Ed / (E0 ** 2 - E ** 2) + 0j)
 
 
+def algainp_adachi(lam, x, _unused=0.0):
+    """Al(x)Ga(0.51-x)In(0.49)P, first-order Sellmeier fit to spectroscopic ellipsometry of
+    S. Adachi, H. Kato, A. Moki, K. Ohtsuka, J. Appl. Phys. 75, 478 (1994):
+        n^2 = A + B lam^2 / (lam^2 - C),  lam in um,  with z = x/0.51 the (AlzGa1-z)0.5In0.5P fraction
+        A = 5.38 + 2.16z,  B = 4.01 - 3.01z,  C = 0.184 - 0.019z + 0.024z^2  (um^2).
+    C is an oscillator wavelength squared (E_p = hc/sqrt(C) ~ 2.9 eV), which is what gives A + B = eps_inf(x)
+    = 9.39 - 0.85z as the paper states."""
+    z = np.asarray(x, dtype=float) / 0.51
+    L2 = _um(lam) ** 2
+    A = 5.38 + 2.16 * z
+    B = 4.01 - 3.01 * z
+    C = 0.184 - 0.019 * z + 0.024 * z * z
+    return np.sqrt(A + B * L2 / (L2 - C) + 0j)
+
+
 def _utaka(x, y):
     E0 = 3.391 + 0.524 * x - 1.891 * y + 1.62 * x * y + 0.595 * x * x * (1 - y)
     Ed = 28.91 + 7.54 * x + y * (12.36 * x - 12.71)
@@ -301,6 +316,13 @@ register("AlGaInP", algainp, "AlxGa0.51-xIn0.49P / GaAs", "GaAs-based", "x (Al)"
                    "as Vertical. Band gap: approximate direct gap, for display.",
          notes="Lattice matched to GaAs. x = 0 is Ga0.51In0.49P, x = 0.51 is Al0.51In0.49P; (AlzGa1-z)0.5In0.5P has "
                "z = x/0.51. Real index, valid below the band gap.")
+register("AlGaInP_Adachi", algainp_adachi, "AlxGa0.51-xIn0.49P / GaAs (Adachi)", "GaAs-based", "x (Al)", None,
+         x_range=(0, 0.51), bandgap=eg_algainp,
+         reference="S. Adachi, H. Kato, A. Moki, K. Ohtsuka, J. Appl. Phys. 75, 478 (1994) (Sellmeier fit to "
+                   "ellipsometry, 1.2-2.9 eV).",
+         notes="Same composition convention as AlGaInP (z = x/0.51). Newer data than Tanaka (1986), measured close to "
+               "the band edge, so preferred for red VCSELs; about 1-3% below the Tanaka/Vertical values. Real index, "
+               "valid below the band gap.")
 register("InGaAsP_xy", ingaasp_xy, "InGaAsP, any x, y (strained)", "InP-based", "x (Ga)", "y (As)",
          bandgap=eg_ingaasp_xy,
          reference="K. Utaka, Y. Suematsu, K. Kishino, H. Kawanishi, Jpn. J. Appl. Phys. 19, L137 (1980) (E0, Ed); "
