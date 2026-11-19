@@ -91,3 +91,9 @@ Run the tests with `pip install pytest` then `pytest`.
 ## License
 
 MIT. See `LICENSE`.
+
+## Releasing changes
+
+The page loads `web/app.js`, `web/about.js` and `web/app.css` with a `?v=` version tag in `index.html`. Bump that tag whenever
+those files change, so browsers don't mix a cached old script with new Python files. GitHub Pages caches pages for up to
+10 minutes, so a refresh may be needed right after an update.
