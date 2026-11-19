@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VCSEL Simulator</title>
+<meta name="description" content="Browser-based 1D transfer-matrix VCSEL design tool: layer stacks, threshold gain, standing-wave field, mirror reflectance.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="web/app.css">
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" class="logo" aria-hidden="true">
+      <rect x="6" y="3" width="20" height="3" rx="1" fill="var(--accent)"/>
+      <rect x="6" y="7" width="20" height="3" rx="1" fill="var(--accent-2)"/>
+      <rect x="6" y="11" width="20" height="3" rx="1" fill="var(--accent)"/>
+      <rect x="6" y="15" width="20" height="2.4" rx="1" fill="var(--active)"/>
+      <rect x="6" y="18.6" width="20" height="3" rx="1" fill="var(--accent-2)"/>
+      <rect x="6" y="22.6" width="20" height="3" rx="1" fill="var(--accent)"/>
+      <rect x="4" y="27" width="24" height="3" rx="1" fill="var(--muted)"/>
+      <path d="M16 0 L16 3" stroke="var(--active)" stroke-width="2"/>
+    </svg>
+    <div>
+      <div class="title">VCSEL Simulator</div>
+      <div class="subtitle">1D transfer-matrix design tool</div>
+    </div>
+  </div>
+  <div class="toolbar">
+    <div class="menu">
+      <button class="btn" data-menu="file">File ▾</button>
+      <div class="menu-list" id="menu-file">
+        <button data-act="new-blank">New (empty)</button>
+        <div class="menu-sep">Templates</div>
+        <button data-act="tpl-gaas_980">980 nm InGaAs/GaAs VCSEL</button>
+        <button data-act="tpl-algaas_850">850 nm GaAs/AlGaAs VCSEL</button>
+        <button data-act="tpl-ece577">ECE 577 final project (from Vertical)</button>
+        <button data-act="tpl-dielectric_dbr">Ta2O5/SiO2 dielectric DBR</button>
+        <div class="menu-sep">Files</div>
+        <button data-act="open">Open design / Vertical .vrt…</button>
+        <button data-act="save">Save design (.vcsel.json)</button>
+        <div class="menu-sep">Export CSV</div>
+        <button data-act="csv-structure">Layer structure</button>
+        <button data-act="csv-index_profile">Index profile</button>
+        <button data-act="csv-field">|E|² field</button>
+        <button data-act="csv-reflectance">Reflectance spectra</button>
+        <button data-act="csv-results">All results</button>
+        <button data-act="csv-inputs">Inputs (design JSON)</button>
+      </div>
+    </div>
+    <label class="lam">λ<sub>design</sub>
+      <input type="number" id="design-lambda" step="0.1" min="100" max="20000"> nm
+    </label>
+    <button class="btn" id="btn-tune" title="Vertical's Marks / Force Wave: scale the marked layers so the cavity resonates at the design wavelength">Tune cavity</button>
+    <button class="btn primary" id="btn-run" title="Threshold + full analysis (Ctrl+Enter)">▶ Analyze</button>
+  </div>
+  <input type="file" id="file-input" accept=".json,.vrt" hidden>
+</header>
+
+<main class="layout">
+  <section class="left">
+    <div class="panel stack-panel">
+      <div class="panel-head">
+        <h2 id="design-name" contenteditable="true" spellcheck="false">Untitled</h2>
+        <div class="stack-tools">
+          <button class="icon" data-act="add-layer" title="Add layer below selection">＋ Layer</button>
+          <button class="icon" data-act="add-group" title="Add group (repeated block) below selection">＋ Group</button>
+          <button class="icon" data-act="dup" title="Duplicate">⧉</button>
+          <button class="icon" data-act="up" title="Move up">↑</button>
+          <button class="icon" data-act="down" title="Move down">↓</button>
+          <button class="icon" data-act="indent" title="Move into the group above">⇥</button>
+          <button class="icon" data-act="outdent" title="Move out of its group">⇤</button>
+          <button class="icon danger" data-act="del" title="Delete">✕</button>
+        </div>
+      </div>
+      <div class="stack-cols"><span>Layer</span><span>Material</span><span class="r">d (nm)</span><span class="r">n</span></div>
+      <div id="stack" class="stack"></div>
+      <div class="stack-foot" id="stack-foot"></div>
+    </div>
+    <div class="panel props-panel">
+      <div class="panel-head"><h3 id="props-title">Properties</h3></div>
+      <div id="props" class="props"></div>
+    </div>
+  </section>
+
+  <section class="right">
+    <nav class="tabs" id="tabs">
+      <button data-tab="field" class="active">Field &amp; index</button>
+      <button data-tab="refl">Reflectance</button>
+      <button data-tab="results">Results</button>
+      <button data-tab="layers">Layer table</button>
+      <button data-tab="materials">Materials</button>
+      <button data-tab="about">Help &amp; theory</button>
+    </nav>
+
+    <div class="tab active" id="tab-field">
+      <div class="plot-opts">
+        <label>Show <select id="f-show"><option value="both">|E|² and n</option><option value="E2">|E|² only</option><option value="n">n only</option></select></label>
+        <label>Normalize |E|² to <select id="f-norm"><option value="bottom">bottom (substrate)</option><option value="top">top (exit medium)</option><option value="peak">peak</option></select></label>
+        <label>x origin <select id="f-origin"><option value="top">top surface</option><option value="bottom">substrate interface</option></select></label>
+        <label>Units <select id="f-units"><option value="nm">nm</option><option value="um">µm</option></select></label>
+        <label><input type="checkbox" id="f-shade" checked> shade regions</label>
+        <span class="spacer"></span>
+        <button class="btn sm" data-export="plot-field" data-fmt="png">PNG</button>
+        <button class="btn sm" data-export="plot-field" data-fmt="svg">SVG</button>
+        <button class="btn sm" data-act="csv-field">CSV</button>
+      </div>
+      <div id="field-summary" class="kpis"></div>
+      <div id="plot-field" class="plot"></div>
+    </div>
+
+    <div class="tab" id="tab-refl">
+      <div class="plot-opts">
+        <label>From <input type="number" id="r-min" step="1"> to <input type="number" id="r-max" step="1"> nm</label>
+        <label>Points <input type="number" id="r-pts" value="2001" min="51" max="20001" step="50"></label>
+        <label><input type="checkbox" class="r-part" value="top_dbr" checked> Top DBR (from cavity)</label>
+        <label><input type="checkbox" class="r-part" value="bottom_dbr" checked> Bottom DBR (from cavity)</label>
+        <label><input type="checkbox" class="r-part" value="full_top"> Whole wafer, from top</label>
+        <label><input type="checkbox" class="r-part" value="full_bottom"> Whole wafer, from substrate</label>
+        <label>Plot <select id="r-mode"><option value="R">Reflectance R</option><option value="phase">Phase of r</option><option value="both">R and phase</option><option value="loss">1 − R (log)</option><option value="T">Transmission T</option></select></label>
+        <span class="spacer"></span>
+        <button class="btn" id="btn-refl">Calculate</button>
+        <button class="btn sm" data-export="plot-refl" data-fmt="png">PNG</button>
+        <button class="btn sm" data-export="plot-refl" data-fmt="svg">SVG</button>
+        <button class="btn sm" data-act="csv-reflectance">CSV</button>
+      </div>
+      <div id="plot-refl" class="plot"></div>
+      <div id="refl-table"></div>
+      <p class="note">Mirror reflectance is computed for the as-grown (passive) structure: active layers carry no gain, so there is no threshold-gain spike. "From cavity" means light incident from the cavity layer next to the mirror (taken as lossless), with the phase referenced to the mirror interface.</p>
+    </div>
+
+    <div class="tab" id="tab-results">
+      <div class="plot-opts">
+        <label><input type="checkbox" id="res-vertical" checked> Show Vertical-convention column</label>
+        <label>Internal efficiency η<sub>i</sub> <input type="number" id="eta-i" value="1" min="0" max="1" step="0.01"></label>
+        <span class="spacer"></span>
+        <button class="btn sm" data-act="csv-results">CSV</button>
+      </div>
+      <div id="results"></div>
+    </div>
+
+    <div class="tab" id="tab-layers">
+      <div class="plot-opts"><span id="layers-note"></span><span class="spacer"></span><button class="btn sm" data-act="csv-structure">CSV</button></div>
+      <div id="layer-table" class="table-wrap"></div>
+    </div>
+
+    <div class="tab" id="tab-materials">
+      <div class="plot-opts">
+        <label>Material <select id="m-mat"></select></label>
+        <label id="m-x-l">x <input type="number" id="m-x" value="0" step="0.01"></label>
+        <label id="m-y-l">y <input type="number" id="m-y" value="0" step="0.01"></label>
+        <label>λ <input type="number" id="m-min" value="600" step="10"> – <input type="number" id="m-max" value="1700" step="10"> nm</label>
+        <span class="spacer"></span>
+        <button class="btn sm" data-export="plot-mat" data-fmt="png">PNG</button>
+        <button class="btn sm" data-export="plot-mat" data-fmt="svg">SVG</button>
+      </div>
+      <div id="plot-mat" class="plot short"></div>
+      <div id="mat-refs"></div>
+    </div>
+
+    <div class="tab" id="tab-about"><div id="about" class="prose"></div></div>
+  </section>
+</main>
+
+<div id="loading" class="loading">
+  <div class="spinner"></div>
+  <div id="loading-msg">Loading the Python engine (first visit takes ~10 s)…</div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script src="web/about.js"></script>
+<script src="web/app.js"></script>
+</body>
+</html>
