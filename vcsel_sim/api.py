@@ -36,7 +36,9 @@ def _clean(o):
 
 def _structure(design_json):
     d = json.loads(design_json) if isinstance(design_json, str) else design_json
-    return Structure.from_dict(d)
+    s = Structure.from_dict(d)
+    materials.set_temperature(s.temperature)
+    return s
 
 
 def ok(payload):
@@ -155,8 +157,10 @@ def tune_cavity(design_json, target=None):
         return fail(e)
 
 
-def material_index(material, x, y, lam_min, lam_max, points=400):
+def material_index(material, x, y, lam_min, lam_max, points=400, temperature=None):
     try:
+        if temperature is not None:
+            materials.set_temperature(temperature)
         lam = np.linspace(float(lam_min), float(lam_max), int(points))
         n = materials.index(material, lam, x, y)
         return ok({"wavelength": lam, "n": n.real, "k": n.imag, "bandgap": materials.bandgap(material, x, y)})
@@ -225,6 +229,7 @@ def dbr_design(options_json):
         from .cavity import coldren_leff
         o = json.loads(options_json) if isinstance(options_json, str) else options_json
         lam0 = float(o.get("lambda0", 980))
+        materials.set_temperature(o.get("temperature", 23.0))
         m = max(int(o.get("pairs", 20)), 1)
         A = _layer_spec(o["first"], "first", o.get("first_waves", 0.25))
         B = _layer_spec(o["second"], "second", o.get("second_waves", 0.25))

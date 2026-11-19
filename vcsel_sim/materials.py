@@ -146,6 +146,62 @@ def algainp_adachi(lam, x, _unused=0.0):
     return np.sqrt(A + B * L2 / (L2 - C) + 0j)
 
 
+# ---------------------------------------------------------------------------
+# temperature (used by the temperature-dependent models only, e.g. AlGaAs_Gehrsitz)
+# ---------------------------------------------------------------------------
+TEMPERATURE_C = 23.0
+REFERENCE_TEMPERATURE_C = 23.0     # layers given in waves are converted to nm at this temperature
+
+
+def set_temperature(t_c):
+    global TEMPERATURE_C
+    TEMPERATURE_C = float(t_c)
+
+
+def _coth(v):
+    return 1.0 / np.tanh(v)
+
+
+def eg_gaas_proctor(T_K):
+    """GaAs direct gap (eV) versus temperature as used by Gehrsitz et al. (their Eq. 11, after Proctor)."""
+    kB = 0.0861708e-3                                  # eV/K
+    Edeb, Eto, S, Sto = 15.9e-3, 33.6e-3, 1.8, 1.1
+    T = max(float(T_K), 1.0)
+    return 1.5192 + S * Edeb * (1 - _coth(Edeb / (2 * kB * T))) + Sto * Eto * (1 - _coth(Eto / (2 * kB * T)))
+
+
+def _gehrsitz_E0(x, T_K):
+    """Direct-gap oscillator energy in um^-1 (Table IV)."""
+    return eg_gaas_proctor(T_K) / 1.239856 + 1.1308 * x + 0.1436 * x * x
+
+
+def eg_algaas_gehrsitz(x, _=0.0):
+    return float(_gehrsitz_E0(x, TEMPERATURE_C + 273.15) * 1.239856)
+
+
+def algaas_gehrsitz(lam, x, _unused=0.0, T_C=None):
+    """Al(x)Ga(1-x)As below the direct gap versus composition, wavelength and temperature,
+    S. Gehrsitz, F. K. Reinhart, C. Gourgon, N. Herres, A. Vonlanthen, H. Sigg, J. Appl. Phys. 87, 7825 (2000):
+        n^2 = A + C0/(E0^2 - E^2) + C1/(E1^2 - E^2) + R(x),   E = 1/lambda in um^-1   (Eqs. 12-13, 16)
+    A, C1, E1^2, 1/C0 and E0 are the Table IV polynomials in x; their x = 0 terms carry the GaAs temperature
+    dependence (Table II fit 2 and Eq. 11). R is the reststrahl correction with the GaAs and AlAs phonons."""
+    T = (TEMPERATURE_C if T_C is None else float(T_C)) + 273.15
+    x = float(x)
+    E2 = (1.0 / _um(lam)) ** 2
+    A0 = 5.9613 + 7.178e-4 * T - 0.953e-6 * T * T
+    E10 = 4.7171 - 3.237e-4 * T - 1.358e-6 * T * T
+    A = A0 - 16.159 * x + 43.511 * x ** 2 - 71.317 * x ** 3 + 57.535 * x ** 4 - 17.451 * x ** 5
+    C1 = 21.5647 + 113.74 * x - 122.5 * x ** 2 + 108.401 * x ** 3 - 47.318 * x ** 4
+    E1s = E10 + 11.006 * x - 3.08 * x ** 2
+    C0 = 1.0 / (50.535 - 150.7 * x - 62.209 * x ** 2 + 797.16 * x ** 3 - 1125 * x ** 4 + 503.79 * x ** 5)
+    E0s = _gehrsitz_E0(x, T) ** 2
+    R = (1 - x) * 1.55e-3 / (0.724e-3 - E2) + x * 2.61e-3 / (1.331e-3 - E2)
+    n2 = A + C0 / (E0s - E2) + C1 / (E1s - E2) + R
+    n = np.sqrt(n2 + 0j)
+    # the model is a below-gap fit: above the direct gap return NaN rather than a pole artefact
+    return np.where(E2 < E0s, n, np.nan + 0j)
+
+
 def _utaka(x, y):
     E0 = 3.391 + 0.524 * x - 1.891 * y + 1.62 * x * y + 0.595 * x * x * (1 - y)
     Ed = 28.91 + 7.54 * x + y * (12.36 * x - 12.71)
@@ -316,6 +372,13 @@ register("AlGaInP", algainp, "AlxGa0.51-xIn0.49P / GaAs", "GaAs-based", "x (Al)"
                    "as Vertical. Band gap: approximate direct gap, for display.",
          notes="Lattice matched to GaAs. x = 0 is Ga0.51In0.49P, x = 0.51 is Al0.51In0.49P; (AlzGa1-z)0.5In0.5P has "
                "z = x/0.51. Real index, valid below the band gap.")
+register("AlGaAs_Gehrsitz", algaas_gehrsitz, "AlxGa1-xAs (Gehrsitz, temperature)", "GaAs-based", "x (Al)", None,
+         bandgap=eg_algaas_gehrsitz,
+         reference="S. Gehrsitz, F. K. Reinhart, C. Gourgon, N. Herres, A. Vonlanthen, H. Sigg, J. Appl. Phys. 87, 7825 "
+                   "(2000) (Table IV with the GaAs temperature terms of Table II, fit 2).",
+         notes="High-accuracy fit (about 1e-3) below the direct gap, 0 <= x <= 1, up to 3 um. Uses the structure "
+               "temperature, so it can model thermal tuning; dn/dT is about 2.6e-4 /K for GaAs near 1 um. Undefined "
+               "(blank) at or above the direct gap; use AlGaAs (Afromowitz) for absorbing GaAs.")
 register("AlGaInP_Adachi", algainp_adachi, "AlxGa0.51-xIn0.49P / GaAs (Adachi)", "GaAs-based", "x (Al)", None,
          x_range=(0, 0.51), bandgap=eg_algainp,
          reference="S. Adachi, H. Kato, A. Moki, K. Ohtsuka, J. Appl. Phys. 75, 478 (1994) (Sellmeier fit to "

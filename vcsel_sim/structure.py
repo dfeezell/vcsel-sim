@@ -72,7 +72,14 @@ class Layer:
         """Thickness in nm. 'waves' means optical thickness n*d in units of the design wavelength."""
         if self.thickness_unit == "nm":
             return float(self.thickness)
-        n = float(np.real(self.index(design_wavelength_nm)))
+        # Layers given in waves are grown once: convert them at the reference temperature so that changing the
+        # structure temperature changes the index of a fixed physical layer (thermal tuning) rather than the layer.
+        t_now = materials.TEMPERATURE_C
+        materials.set_temperature(materials.REFERENCE_TEMPERATURE_C)
+        try:
+            n = float(np.real(self.index(design_wavelength_nm)))
+        finally:
+            materials.set_temperature(t_now)
         return float(self.thickness) * design_wavelength_nm / n
 
     def to_dict(self):
@@ -127,6 +134,7 @@ class FlatLayer:
 class Structure:
     name: str = "Untitled VCSEL"
     design_wavelength: float = 980.0          # nm
+    temperature: float = 23.0                 # deg C, used by temperature-dependent material models
     top: Layer = field(default_factory=lambda: Layer(name="Air", material="Air", thickness=0,
                                                      thickness_unit="nm", layer_type="other"))
     substrate: Layer = field(default_factory=lambda: Layer(name="GaAs substrate", material="AlGaAs",
@@ -155,13 +163,14 @@ class Structure:
 
     def to_dict(self):
         return {"format": "vcsel-sim", "version": 1, "name": self.name,
-                "design_wavelength": self.design_wavelength,
+                "design_wavelength": self.design_wavelength, "temperature": self.temperature,
                 "top": self.top.to_dict(), "substrate": self.substrate.to_dict(),
                 "stack": [i.to_dict() for i in self.stack], "notes": self.notes}
 
     @staticmethod
     def from_dict(d):
         return Structure(name=d.get("name", "Untitled"), design_wavelength=float(d.get("design_wavelength", 980)),
+                         temperature=float(d.get("temperature", 23.0)),
                          top=Layer.from_dict(d["top"]), substrate=Layer.from_dict(d["substrate"]),
                          stack=[item_from_dict(i) for i in d.get("stack", [])], notes=d.get("notes", ""))
 

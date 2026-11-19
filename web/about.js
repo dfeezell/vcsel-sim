@@ -77,8 +77,11 @@ Objects left in Vertical's “Extra” area are ignored. Indices are kept fixed 
 <p>The same engine runs in plain Python or Jupyter (it needs only numpy):</p>
 <span class="eq">from vcsel_sim.vrt import read_vrt<br>from vcsel_sim.laser import analyze, reflectance_spectrum<br>s = read_vrt(open("design.vrt","rb").read())<br>a = analyze(s); print(a.threshold_gain, a.wavelength)</span>
 
+<h2>Temperature</h2>
+<p>The <b>T</b> box in the toolbar sets the structure temperature. It is used by temperature-dependent materials, currently <b>AlGaAs (Gehrsitz, temperature)</b>: Gehrsitz et al., J. Appl. Phys. 87, 7825 (2000), accurate to about 10<sup>−3</sup> below the direct gap, with dn/dT of about 2.6–3.5×10<sup>−4</sup>/K for GaAs and 1.3×10<sup>−4</sup>/K for AlAs near 1 µm (Talghader &amp; Smith, APL 66, 335 (1995), measured 2.67 and 1.43×10<sup>−4</sup>/K). Build the DBRs and cavity from that material and change T to see the resonance tune (about 0.06 nm/K for a 980 nm GaAs/AlGaAs cavity). Layers given in waves are converted to nm at 23 °C, so they stay physically fixed as T changes; thermal expansion (about 6×10<sup>−6</sup>/K) is not included. Other materials ignore T. The model is blank at and above the GaAs gap, so keep absorbing GaAs contact or substrate layers on the Afromowitz AlGaAs model.</p>
+
 <h2>Planned</h2>
 <ul><li>Phase 2: apertures (oxide / air), effective-index lateral modes, diffraction and scattering loss, 2D modal gain.</li>
 <li>User-defined gain spectra g(λ, N) (e.g. from Coldren &amp; Corzine or measurements). The engine already keeps the gain per active layer separate, so this can be added.</li>
-<li>Temperature-dependent indices, doping-dependent free-carrier loss tables.</li></ul>
+<li>More temperature-dependent materials; doping-dependent free-carrier absorption.</li></ul>
 `;

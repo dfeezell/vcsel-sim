@@ -152,3 +152,44 @@ def test_algainp_adachi():
         assert materials.index("AlGaInP_Adachi", lam_long, x).real ** 2 == pytest.approx(9.39 - 0.85 * z, abs=0.01)
     assert materials.index("AlGaInP_Adachi", 1033.0, 0.0).real == pytest.approx(3.1977, abs=1e-3)
     assert 3.5 < materials.index("AlGaInP_Adachi", 650.0, 0.0).real < 3.6
+
+
+def test_algaas_gehrsitz():
+    import numpy as np
+    from vcsel_sim.structure import Structure
+    g = lambda lam, x, T: complex(np.ravel(materials.algaas_gehrsitz(lam, x, 0.0, T))[0]).real
+    # Fig. 5 of the paper (x = 0.334, 23 C) and Fig. 4 (AlAs near 800 nm)
+    assert g(730, 0.334, 23) == pytest.approx(3.462, abs=3e-3)
+    assert g(830, 0.334, 23) == pytest.approx(3.370, abs=3e-3)
+    assert g(800, 1.0, 23) == pytest.approx(3.005, abs=3e-3)
+    # GaAs gap at 23 C and blank above it
+    assert materials.eg_gaas_proctor(296.15) == pytest.approx(1.424, abs=3e-3)
+    assert np.isnan(g(850, 0.0, 23))
+    # dn/dT near 1 um of the same order as Talghader & Smith (2.67e-4 GaAs, 1.43e-4 AlAs)
+    assert 2.5e-4 < (g(1000, 0, 73) - g(1000, 0, 23)) / 50 < 3.8e-4
+    assert 1.1e-4 < (g(1000, 1, 73) - g(1000, 1, 23)) / 50 < 1.6e-4
+    # temperature round-trips through the design JSON
+    assert Structure.from_dict(Structure(temperature=85.0).to_dict()).temperature == 85.0
+
+
+def test_thermal_tuning_gehrsitz():
+    import json
+    from vcsel_sim import templates, api
+    d = templates.gaas_980().to_dict()
+
+    def sw(o):
+        if isinstance(o, dict):
+            if o.get("material") == "AlGaAs":
+                o["material"] = "AlGaAs_Gehrsitz"
+            for v in o.values():
+                sw(v)
+        elif isinstance(o, list):
+            for v in o:
+                sw(v)
+    sw(d)
+    lam = []
+    for T in (23.0, 73.0):
+        d["temperature"] = T
+        lam.append(json.loads(api.run_analysis(json.dumps(d)))["results"]["wavelength"])
+    # GaAs/AlGaAs VCSEL resonances move about 0.06-0.07 nm/K
+    assert 0.05 < (lam[1] - lam[0]) / 50 < 0.08

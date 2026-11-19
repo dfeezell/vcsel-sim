@@ -107,6 +107,8 @@ function setDesign(d, rerun = true) {
   S.design = d; tagIds(d.stack); S.collapsed.clear(); S.analysis = null; S.refl = null;
   S.sel = d.stack.length ? ["stack", 0] : ["top"];
   $("#design-lambda").value = d.design_wavelength;
+  if (d.temperature == null) d.temperature = 23;
+  $("#design-temp").value = d.temperature;
   $("#design-name").textContent = d.name || "Untitled";
   const lam = d.design_wavelength;
   $("#r-min").value = Math.round(lam * 0.85); $("#r-max").value = Math.round(lam * 1.15);
@@ -167,7 +169,7 @@ function runAnalysis(explicit = true) {
 /* ------------------------------------------------------------------ stack view */
 const MAT_COLORS = { AlGaAs: (x) => `hsl(${140 - 90 * x}, ${55 + 10 * x}%, ${62 - 10 * x}%)`, InGaAs: () => "#e8590c",
   InGaAsP: () => "#9c36b5", InP: () => "#cc5de8", InAlGaAs: (x) => `hsl(${290 - 40 * x}, 45%, ${55 + 10 * x}%)`,
-  AlGaInP: (x) => `hsl(${40 - 30 * x}, 70%, ${62 + 15 * x}%)`, InGaAsP_xy: () => "#862e9c", AlGaInP_Adachi: (x) => `hsl(${30 - 30 * x}, 70%, ${58 + 15 * x}%)`, GaN: () => "#1c7ed6", AlN: () => "#74c0fc", SiO2: () => "#e9ecef",
+  AlGaInP: (x) => `hsl(${40 - 30 * x}, 70%, ${62 + 15 * x}%)`, InGaAsP_xy: () => "#862e9c", AlGaAs_Gehrsitz: (x) => `hsl(${210 - 20 * x}, 55%, ${45 + 35 * x}%)`, AlGaInP_Adachi: (x) => `hsl(${30 - 30 * x}, 70%, ${58 + 15 * x}%)`, GaN: () => "#1c7ed6", AlN: () => "#74c0fc", SiO2: () => "#e9ecef",
   Si3N4: () => "#ced4da", Ta2O5: () => "#ffd43b", TiO2: () => "#fab005", TiO2_rutile: () => "#f08c00", HfO2: () => "#ffe066",
   Nb2O5: () => "#fcc419", Al2O3: () => "#d0bfff", Al2O3_film: () => "#d0bfff", AlOx: () => "#868e96", Air: () => "#ffffff",
   Generic: () => "#adb5bd", Au: () => "#d4a017", Ag: () => "#c0c0c0", Ti: () => "#7d8597", Cr: () => "#6c757d", Pt: () => "#a5a5a5" };
@@ -370,6 +372,7 @@ $("#props").addEventListener("click", (e) => {
   it[f] = v; changed();
 });
 $("#design-name").addEventListener("input", () => { S.design.name = $("#design-name").textContent.trim(); persist(); });
+$("#design-temp").addEventListener("change", (e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) S.design.temperature = v; changed(); });
 $("#design-lambda").addEventListener("change", (e) => { S.design.design_wavelength = parseFloat(e.target.value) || S.design.design_wavelength; changed(); });
 
 /* ------------------------------------------------------------------ field plot */
@@ -598,7 +601,7 @@ function plotMaterial() {
   const key = $("#m-mat").value; const m = S.matByKey[key];
   $("#m-x-l").style.display = m.x_label ? "" : "none"; $("#m-y-l").style.display = m.y_label ? "" : "none";
   if (m.x_label) $("#m-x-l").firstChild.textContent = m.x_label + " ";
-  let r; try { r = call("material_index", key, +$("#m-x").value, +$("#m-y").value, +$("#m-min").value, +$("#m-max").value, 500); } catch (e) { toast(e.message, true); return; }
+  let r; try { r = call("material_index", key, +$("#m-x").value, +$("#m-y").value, +$("#m-min").value, +$("#m-max").value, 500, S.design.temperature ?? 23); } catch (e) { toast(e.message, true); return; }
   const tr = [{ x: r.wavelength, y: r.n, name: "n", line: { color: "#1f5fae", width: 2 } }];
   if (r.k.some((v) => v > 1e-9)) tr.push({ x: r.wavelength, y: r.k, name: "k", yaxis: "y2", line: { color: "#d9480f", width: 2, dash: "dot" } });
   const shapes = r.bandgap ? [{ type: "line", x0: 1239.842 / r.bandgap, x1: 1239.842 / r.bandgap, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", dash: "dash", width: 1 } }] : [];
@@ -668,7 +671,7 @@ function runDbr() {
   const lam = +$("#dbr-lam").value;
   if (!$("#dbr-min").value || !$("#dbr-max").value) { $("#dbr-min").value = Math.round(lam * 0.8); $("#dbr-max").value = Math.round(lam * 1.2); }
   const o = { lambda0: lam, pairs: +$("#dbr-pairs").value, first: dbrSpec("first"), second: dbrSpec("second"), incident: dbrSpec("incident"), exit: dbrSpec("exit"),
-    lambda_min: +$("#dbr-min").value, lambda_max: +$("#dbr-max").value, points: 2001 };
+    lambda_min: +$("#dbr-min").value, lambda_max: +$("#dbr-max").value, points: 2001, temperature: S.design.temperature ?? 23 };
   try { S.dbr = call("dbr_design", JSON.stringify(o)); } catch (e) { S.dbr = null; toast(e.message, true); return; }
   plotDbr();
 }
