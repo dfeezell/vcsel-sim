@@ -77,6 +77,10 @@ Objects left in Vertical's “Extra” area are ignored. Indices are kept fixed 
 <p>The same engine runs in plain Python or Jupyter (it needs only numpy):</p>
 <span class="eq">from vcsel_sim.vrt import read_vrt<br>from vcsel_sim.laser import analyze, reflectance_spectrum<br>s = read_vrt(open("design.vrt","rb").read())<br>a = analyze(s); print(a.threshold_gain, a.wavelength)</span>
 
+<h2>Building the stack visually</h2>
+<p>The stack panel has two views. <b>☰ List</b> is the tree, as in Vertical. <b>▤ Diagram</b> draws the stack as blocks, with block height following layer thickness (or equal heights), each group drawn once with its repeat count, and a to-scale strip of the whole wafer on the right (every repeat drawn; the blue bar marks the selection). Click a block or the strip to select and edit it below. Drag blocks to reorder them, drag a layer onto a group header to put it inside the group, and drag the chips at the top (layer, DBR pairs, QW + barrier, spacer, empty group, oxide) into the stack to add new pieces. ⇔ widens the panel. The toolbar buttons (duplicate, move, delete) work in both views.</p>
+<p>The DBR design tab draws the mirror it designs and can export it as a layer CSV or save it as a design file.</p>
+
 <h2>Temperature</h2>
 <p>The <b>T</b> box in the toolbar sets the structure temperature. It is used by temperature-dependent materials, currently <b>AlGaAs (Gehrsitz, temperature)</b>: Gehrsitz et al., J. Appl. Phys. 87, 7825 (2000), accurate to about 10<sup>−3</sup> below the direct gap, with dn/dT of about 2.6–3.5×10<sup>−4</sup>/K for GaAs and 1.3×10<sup>−4</sup>/K for AlAs near 1 µm (Talghader &amp; Smith, APL 66, 335 (1995), measured 2.67 and 1.43×10<sup>−4</sup>/K). Build the DBRs and cavity from that material and change T to see the resonance tune (about 0.06 nm/K for a 980 nm GaAs/AlGaAs cavity). Layers given in waves are converted to nm at 23 °C, so they stay physically fixed as T changes; thermal expansion (about 6×10<sup>−6</sup>/K) is not included. Other materials ignore T. The model is blank at and above the GaAs gap, so keep absorbing GaAs contact or substrate layers on the Afromowitz AlGaAs model.</p>
 

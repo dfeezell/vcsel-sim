@@ -7,7 +7,7 @@
 <meta name="description" content="Browser-based 1D transfer-matrix VCSEL design tool: layer stacks, threshold gain, standing-wave field, mirror reflectance.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="web/app.css?v=1.6">
+<link rel="stylesheet" href="web/app.css?v=1.7">
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 </head>
@@ -68,6 +68,8 @@
     <div class="panel stack-panel">
       <div class="panel-head">
         <h2 id="design-name" contenteditable="true" spellcheck="false">Untitled</h2>
+        <div class="seg" id="view-seg" title="Show the stack as a list or as a drawing you can drag blocks into"><button data-view="list">☰ List</button><button data-view="diagram">▤ Diagram</button></div>
+        <button class="icon" id="btn-wide" title="Make the stack panel wider">⇔</button>
         <div class="stack-tools">
           <button class="icon" data-act="add-layer" title="Add layer below selection">＋ Layer</button>
           <button class="icon" data-act="add-group" title="Add group (repeated block) below selection">＋ Group</button>
@@ -81,6 +83,7 @@
       </div>
       <div class="stack-cols"><span>Layer</span><span>Material</span><span class="r">d (nm)</span><span class="r">n</span></div>
       <div id="stack" class="stack"></div>
+      <div id="stack-diagram" class="stack-diagram"></div>
       <div class="stack-foot" id="stack-foot"></div>
     </div>
     <div class="panel props-panel">
@@ -109,8 +112,6 @@
         <label><input type="checkbox" id="f-shade" checked> shade regions</label>
         <label title="Spacing of the plotted |E|² points. All integrals are analytic, so results do not depend on this.">Sampling <input type="number" id="f-sp-p" value="1" min="0.01" max="20" step="0.1" style="width:56px"> nm passive, <input type="number" id="f-sp-a" value="0.02" min="0.001" max="1" step="0.01" style="width:64px"> nm active</label>
         <span class="spacer"></span>
-        <button class="btn sm" data-export="plot-field" data-fmt="png">PNG</button>
-        <button class="btn sm" data-export="plot-field" data-fmt="svg">SVG</button>
         <button class="btn sm" data-act="csv-field">CSV</button>
       </div>
       <div id="field-summary" class="kpis"></div>
@@ -128,8 +129,6 @@
         <label>Plot <select id="r-mode"><option value="R">Reflectance R</option><option value="phase">Phase of r</option><option value="both">R and phase</option><option value="loss">1 − R (log)</option><option value="T">Transmission T</option></select></label>
         <span class="spacer"></span>
         <button class="btn" id="btn-refl">Calculate</button>
-        <button class="btn sm" data-export="plot-refl" data-fmt="png">PNG</button>
-        <button class="btn sm" data-export="plot-refl" data-fmt="svg">SVG</button>
         <button class="btn sm" data-act="csv-reflectance">CSV</button>
       </div>
       <div id="plot-refl" class="plot"></div>
@@ -153,14 +152,14 @@
         <span class="spacer"></span>
         <label>Insert as <select id="dbr-role"><option value="bottom_dbr">Bottom DBR</option><option value="top_dbr">Top DBR</option><option value="none">plain group</option></select></label>
         <button class="btn primary" id="btn-dbr-insert" title="Add this mirror to the layer stack, below the selected item">Insert into stack</button>
-        <button class="btn sm" data-export="plot-dbr" data-fmt="png">PNG</button>
-        <button class="btn sm" data-export="plot-dbr" data-fmt="svg">SVG</button>
-        <button class="btn sm" id="btn-dbr-csv">CSV</button>
+        <button class="btn sm" id="btn-dbr-csv" title="Reflectance spectrum and R versus pairs">Spectrum CSV</button>
+        <button class="btn sm" id="btn-dbr-layers" title="Layer structure (name, material, thickness, index) as CSV">Layers CSV</button>
+        <button class="btn sm" id="btn-dbr-save" title="Save the mirror, with its incident and exit media, as a design file you can open with File ▸ Open">Save as design</button>
       </div>
       <div id="dbr-kpis" class="kpis"></div>
       <div id="plot-dbr" class="plot short"></div>
       <div class="dbr-bottom">
-        <div id="dbr-table"></div>
+        <div><div id="dbr-table"></div><div id="dbr-structure" class="dbr-structure"></div></div>
         <div id="plot-dbr-pairs" class="dbr-pairs-plot"></div>
       </div>
       <p class="note">Quarter-wave stack at λ<sub>0</sub>, normal incidence, light arriving from the incident medium onto the 1st layer. For a mirror seen from a GaAs cavity, use GaAs as the incident medium and put the low-index layer first. Penetration depth: Coldren &amp; Corzine eqs. A7.13 and A7.25, with the Ch. 3 approximations for comparison. Analytic R uses ((n<sub>0</sub> − Y)/(n<sub>0</sub> + Y))², Y = (n<sub>1</sub>/n<sub>2</sub>)<sup>2m</sup> n<sub>exit</sub>.</p>
@@ -190,8 +189,6 @@
         <label id="m-y-l">y <input type="number" id="m-y" value="0" step="0.01"></label>
         <label>λ <input type="number" id="m-min" value="600" step="10"> – <input type="number" id="m-max" value="1700" step="10"> nm</label>
         <span class="spacer"></span>
-        <button class="btn sm" data-export="plot-mat" data-fmt="png">PNG</button>
-        <button class="btn sm" data-export="plot-mat" data-fmt="svg">SVG</button>
       </div>
       <div id="plot-mat" class="plot short"></div>
       <div id="mat-refs"></div>
@@ -207,7 +204,8 @@
 </div>
 <div id="toast" class="toast"></div>
 
-<script src="web/about.js?v=1.6"></script>
-<script src="web/app.js?v=1.6"></script>
+<script src="web/about.js?v=1.7"></script>
+<script src="web/stackviz.js?v=1.7"></script>
+<script src="web/app.js?v=1.7"></script>
 </body>
 </html>

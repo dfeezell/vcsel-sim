@@ -65,7 +65,8 @@ async function boot() {
     S.api = S.py.pyimport("vcsel_sim.api");
     S.materials = call("material_catalog").materials;
     S.materials.forEach((m) => (S.matByKey[m.key] = m));
-    initMaterialsTab(); initDbrTab();
+    initMaterialsTab(); initDbrTab(); initDbrExtras(); initStackViews();
+    ["#plot-field", "#plot-refl", "#plot-mat", "#plot-dbr", "#plot-dbr-pairs"].forEach((sel) => addPlotBar($(sel)));
     let start = "gaas_980";
     try { const saved = localStorage.getItem("vcsel-design"); if (saved) { setDesign(JSON.parse(saved), false); start = null; } } catch (e) { /* ignore */ }
     if (start) loadTemplate(start);
@@ -187,6 +188,7 @@ function matText(L) {
 }
 function renderStack() {
   const el = $("#stack"); if (!S.design) return;
+  if (VIEW.mode === "diagram") { renderDiagramView(); renderFoot(); return; }
   const info = S.nodeInfo?.nodes || [];
   let k = 0; const rows = [];
   const selKey = S.sel.join(",");
@@ -205,11 +207,10 @@ function renderStack() {
         const coll = S.collapsed.has(it._id);
         const k0 = k; const countLayers = (g) => g.children.reduce((a, c) => a + (c.kind === "group" ? countLayers(c) : 1), 0);
         const per = sumThick(it, k0, info);
-        rows.push(`<div class="row group ${selKey === key ? "sel" : ""}" data-path="${key}" ${pad}>
+        rows.push(`<div class="row group ${selKey === key ? "sel" : ""}" data-path="${key}" ${pad} title="${countLayers(it)} layer${countLayers(it) === 1 ? "" : "s"} per period, repeated ${it.repeats}×">
           <div class="nm"><span class="caret" data-toggle="${it._id}">${coll ? "▸" : "▾"}</span><span class="t">${esc(it.name)}</span>
           <span class="rep">× <input type="number" min="0" step="1" value="${it.repeats}" data-rep="${key}"></span>
           ${it.role !== "none" ? `<span class="badge role">${ROLES.find((r) => r[0] === it.role)?.[1] || it.role}</span>` : ""}</div>
-          <div class="mat">${countLayers(it)} layer${countLayers(it) === 1 ? "" : "s"} / period</div>
           <div class="num" title="period × repeats">${fmt(per * it.repeats, 4)}</div><div class="num"></div></div>`);
         if (!coll) walk(it.children, p, depth + 1); else k += countLeaves(it);
       } else {
@@ -378,7 +379,7 @@ $("#design-lambda").addEventListener("change", (e) => { S.design.design_waveleng
 /* ------------------------------------------------------------------ field plot */
 const PLOT_FONT = { family: "Inter, Arial, sans-serif", size: 13, color: "#18202b" };
 const PLOT_CONFIG = { responsive: true, displaylogo: false, toImageButtonOptions: { format: "png", scale: 4, filename: "vcsel_plot" },
-  modeBarButtonsToRemove: ["lasso2d", "select2d"] };
+  modeBarButtonsToRemove: ["lasso2d", "select2d"], displayModeBar: false };   // labelled toolbar above each plot instead (stackviz.js)
 function xmap(z, P) {
   const units = $("#f-units").value; const origin = $("#f-origin").value;
   const tot = P.total_thickness;
@@ -601,7 +602,7 @@ function plotMaterial() {
   const key = $("#m-mat").value; const m = S.matByKey[key];
   $("#m-x-l").style.display = m.x_label ? "" : "none"; $("#m-y-l").style.display = m.y_label ? "" : "none";
   if (m.x_label) $("#m-x-l").firstChild.textContent = m.x_label + " ";
-  let r; try { r = call("material_index", key, +$("#m-x").value, +$("#m-y").value, +$("#m-min").value, +$("#m-max").value, 500, S.design.temperature ?? 23); } catch (e) { toast(e.message, true); return; }
+  let r; try { r = call("material_index", key, +$("#m-x").value, +$("#m-y").value, +$("#m-min").value, +$("#m-max").value, 500, S.design?.temperature ?? 23); } catch (e) { toast(e.message, true); return; }
   const tr = [{ x: r.wavelength, y: r.n, name: "n", line: { color: "#1f5fae", width: 2 } }];
   if (r.k.some((v) => v > 1e-9)) tr.push({ x: r.wavelength, y: r.k, name: "k", yaxis: "y2", line: { color: "#d9480f", width: 2, dash: "dot" } });
   const shapes = r.bandgap ? [{ type: "line", x0: 1239.842 / r.bandgap, x1: 1239.842 / r.bandgap, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", dash: "dash", width: 1 } }] : [];
@@ -671,7 +672,7 @@ function runDbr() {
   const lam = +$("#dbr-lam").value;
   if (!$("#dbr-min").value || !$("#dbr-max").value) { $("#dbr-min").value = Math.round(lam * 0.8); $("#dbr-max").value = Math.round(lam * 1.2); }
   const o = { lambda0: lam, pairs: +$("#dbr-pairs").value, first: dbrSpec("first"), second: dbrSpec("second"), incident: dbrSpec("incident"), exit: dbrSpec("exit"),
-    lambda_min: +$("#dbr-min").value, lambda_max: +$("#dbr-max").value, points: 2001, temperature: S.design.temperature ?? 23 };
+    lambda_min: +$("#dbr-min").value, lambda_max: +$("#dbr-max").value, points: 2001, temperature: S.design?.temperature ?? 23 };
   try { S.dbr = call("dbr_design", JSON.stringify(o)); } catch (e) { S.dbr = null; toast(e.message, true); return; }
   plotDbr();
 }
@@ -710,6 +711,7 @@ function plotDbr() {
     yaxis: { type: "log", title: { text: "1 − R" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", exponentformat: "power" },
     shapes: [{ type: "line", x0: +$("#dbr-pairs").value, x1: +$("#dbr-pairs").value, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],
   }, PLOT_CONFIG);
+  renderDbrStructure();
 }
 
 /* ------------------------------------------------------------------ tabs, menus, files */
