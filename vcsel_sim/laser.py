@@ -65,15 +65,20 @@ class Model:
 
 
 # ---------------------------------------------------------------------------
-def outgoing_mismatch(model: Model, lam, gain):
-    """Ratio A0/B0 at the top surface when the substrate has only an outgoing wave.
-    Zero at threshold (no incoming wave from the top)."""
+def _top_amplitudes(model: Model, lam, gain):
     ns = model.indices(lam, gain)
     one = np.ones(1, dtype=complex)
     tops = tmm.fields_up(ns, list(model.d), np.atleast_1d(lam), (one, ns[-1] * one))
     E0, H0 = tops[0]
     A0, B0 = tmm.amplitudes(E0, H0, ns[0])
-    return complex((A0 / B0)[0])
+    return complex(A0[0]), complex(B0[0])
+
+
+def outgoing_mismatch(model: Model, lam, gain):
+    """Ratio A0/B0 at the top surface when the substrate has only an outgoing wave.
+    Zero at threshold (no incoming wave from the top)."""
+    A0, B0 = _top_amplitudes(model, lam, gain)
+    return A0 / B0
 
 
 def find_resonance(model: Model, center=None, span=None, points=4001, gain=0.0):
@@ -152,13 +157,19 @@ def solve_threshold(model: Model, lam_guess=None, g_guess=None, tol=1e-12, maxit
         alpha_tot = 4 * np.pi * ng * abs(lamc.imag) / lam ** 2 * 1e7   # cm^-1
         g_guess = alpha_tot / max(gamma, 1e-6)
     g = float(g_guess)
-    f = outgoing_mismatch(model, lam, g)
+    # Newton on the incoming amplitude A0 itself (scaled by a fixed reference). A0 is an entire,
+    # nearly linear function of (lambda, g) near threshold, whereas the ratio A0/B0 has a nearby pole
+    # that shrinks Newton's basin to almost nothing in very high-Q cavities (dielectric DBRs).
+    A_ref, B_ref = _top_amplitudes(model, lam, g)
+    scale_ref = 1.0 / abs(B_ref) if abs(B_ref) > 0 else 1.0
+    resid = lambda L_, G_: _top_amplitudes(model, L_, G_)[0] * scale_ref
+    f = resid(lam, g)
     it = 0
     for it in range(1, maxit + 1):
-        dl = 1e-6 * lam
-        dg = 1e-4 * max(abs(g), 10.0)
-        fl = (outgoing_mismatch(model, lam + dl, g) - f) / dl
-        fg = (outgoing_mismatch(model, lam, g + dg) - f) / dg
+        dl = 1e-7 * lam
+        dg = 1e-5 * max(abs(g), 10.0)
+        fl = (resid(lam + dl, g) - f) / dl
+        fg = (resid(lam, g + dg) - f) / dg
         J = np.array([[fl.real, fg.real], [fl.imag, fg.imag]])
         try:
             step = np.linalg.solve(J, -np.array([f.real, f.imag]))
@@ -171,18 +182,19 @@ def solve_threshold(model: Model, lam_guess=None, g_guess=None, tol=1e-12, maxit
         if abs(step[1]) > 0.5 * max(abs(g), 200.0):
             scale = min(scale, 0.5 * max(abs(g), 200.0) / abs(step[1]))
         lam_n, g_n = lam + scale * step[0], g + scale * step[1]
-        f_n = outgoing_mismatch(model, lam_n, g_n)
+        f_n = resid(lam_n, g_n)
         # backtrack if the residual grew
         bt = 0
-        while abs(f_n) > abs(f) and bt < 8:
+        while not abs(f_n) <= abs(f) and bt < 8:
             scale *= 0.5
             lam_n, g_n = lam + scale * step[0], g + scale * step[1]
-            f_n = outgoing_mismatch(model, lam_n, g_n)
+            f_n = resid(lam_n, g_n)
             bt += 1
         lam, g, f = lam_n, g_n, f_n
-        if abs(f) < tol or (abs(scale * step[0]) < 1e-11 and abs(scale * step[1]) < 1e-9):
+        if abs(f) < tol or (abs(scale * step[0]) < 1e-12 and abs(scale * step[1]) < 1e-10):
             break
-    return ThresholdResult(lam, g, abs(f) < 1e-8, it, abs(f))
+    r = abs(outgoing_mismatch(model, lam, g))
+    return ThresholdResult(lam, g, bool(r < 1e-8), it, r)
 
 
 # ---------------------------------------------------------------------------

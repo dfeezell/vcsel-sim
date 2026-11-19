@@ -80,11 +80,15 @@ def _parse_object(b, pos):
     vals = _layer_fields(b, pos)
     x, y, nr, ni, dop, thick, absn, wl, tflag, eg = vals
     name, reps, end = _read_name_after(b, pos + 14 + 80)
-    lt = "active" if typ == 4 else ("n-type" if dop < 0 else "p-type" if dop > 0 else "undoped")
+    # The 16-bit code after the tag is Vertical's material model (0 generic, 1 AlGaAs, 4 InGaAs,
+    # 6 SiO2, 13/14 boundary media ...), NOT the layer type. The "active" flag is the 16-bit word
+    # 10 bytes after the ten doubles (1 = active layer).
+    is_active = struct.unpack_from("<H", b, pos + 14 + 80 + 10)[0] == 1
+    lt = "active" if is_active else ("n-type" if dop < 0 else "p-type" if dop > 0 else "undoped")
     lay = Layer(name=name, material="AlGaAs", x=x, y=y, thickness=thick, thickness_unit="nm",
                 index_mode="fixed", n_real=nr, n_imag=-ni,
-                absorption=(0.0 if typ == 4 else absn * 1e7), layer_type=lt, doping=abs(dop) * 1e18)
-    lay._vrt = {"type": typ, "wavelength": wl, "bandgap": eg, "absorption_nm": absn}
+                absorption=(0.0 if is_active else absn * 1e7), layer_type=lt, doping=abs(dop) * 1e18)
+    lay._vrt = {"type": typ, "active": is_active, "wavelength": wl, "bandgap": eg, "absorption_nm": absn}
     return lay, end
 
 
@@ -136,13 +140,7 @@ def read_vrt(data: bytes, name="Imported Vertical design") -> Structure:
             if "active" in nm:
                 item.role = "active"
             return
-        nm = item.name.lower()
-        if "ingaas" in nm:
-            item.material = "InGaAs"
-        elif "air" == nm.strip():
-            item.material = "Air"
-        else:
-            item.material = "AlGaAs"
+        item.material = _guess_material(item)
 
     for c in root.children:
         tag(c)
@@ -163,6 +161,31 @@ def read_vrt(data: bytes, name="Imported Vertical design") -> Structure:
     if n_extra:
         s.notes += f" {n_extra} unused object(s) in Vertical's Extra area were ignored."
     return s
+
+
+# Materials whose name alone identifies them (no composition needed). Indices stay fixed at the
+# values stored in the file; the material only sets the label and colour.
+_NAME_MATS = [("sio2", "SiO2"), ("ta2o5", "Ta2O5"), ("tio2", "TiO2"), ("hfo2", "HfO2"), ("nb2o5", "Nb2O5"),
+              ("si3n4", "Si3N4"), ("al2o3", "Al2O3_film"), ("al203", "Al2O3_film"), ("alox", "AlOx"),
+              ("silver", "Ag"), ("gold", "Au"), ("titanium", "Ti"), ("chrom", "Cr"), ("platinum", "Pt"),
+              ("algan", None), ("ingan", None), ("aln", "AlN"), ("gan", "GaN"), ("inp", "InP")]
+
+
+def _guess_material(item):
+    typ = getattr(item, "_vrt", {}).get("type")
+    nm = item.name.lower().replace(" ", "")
+    if typ == 1:
+        return "AlGaAs"
+    if typ == 4 or "ingaas" in nm:
+        return "InGaAs"
+    if nm == "air":
+        return "Air"
+    for key, mat in _NAME_MATS:
+        if key in nm:
+            return mat or "Generic"
+    if "algaas" in nm or nm in ("gaas", "alas") or nm.endswith("gaas"):
+        return "AlGaAs"
+    return "Generic"
 
 
 def _contains_active(it):
