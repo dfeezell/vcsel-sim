@@ -135,3 +135,10 @@ def test_inalgaas_mondry():
     # index rises toward the GaInAs end and is above InP at the same wavelength
     assert materials.index("InAlGaAs", 1550.0, 0.3).real > materials.index("InAlGaAs", 1550.0, 1.0).real
     assert materials.bandgap("InAlGaAs", 1.0) == pytest.approx(1.45)
+
+
+def test_algainp_and_ingaasp_match_vertical():
+    # values read from Vertical's layer dialog at 980 nm
+    assert materials.index("AlGaInP", 980.0, 0.0).real == pytest.approx(3.25885, abs=2e-5)
+    assert materials.index("AlGaInP", 980.0, 0.3).real == pytest.approx(3.12045, abs=2e-5)
+    assert materials.bandgap("InGaAsP_xy", 0.42, 0.2) == pytest.approx(1.53714, abs=1e-5)

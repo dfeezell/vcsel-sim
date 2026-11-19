@@ -113,6 +113,44 @@ def ingaasp(lam, y, _unused=0.0):
     return afromowitz(_E(lam), E0, Ed, eg_ingaasp(y))
 
 
+def eg_algainp(x, _=0.0):
+    """Direct (Gamma) gap of Al(x)Ga(0.51-x)In(0.49)P on GaAs at 300 K (eV), disordered alloy:
+    1.91 eV for Ga0.51In0.49P rising ~0.61 eV per unit of (Al fraction / 0.51); the gap becomes
+    indirect near x ~ 0.3 (approximate, for display)."""
+    return 1.91 + 0.61 * (x / 0.51)
+
+
+def algainp(lam, x, _unused=0.0):
+    """Al(x)Ga(0.51-x)In(0.49)P lattice matched to GaAs, single-oscillator (Wemple-DiDomenico) model of
+    H. Tanaka, Y. Kawamura, H. Asahi, J. Appl. Phys. 59, 985 (1986):
+        n^2 = 1 + E0 Ed / (E0^2 - E^2),  E0 = 3.39 + 1.216x,  Ed = 28.07 + 3.373x  (eV).
+    Same model and constants as Vertical (reproduces its GaInP and Al0.3 values to 1e-5 at 980 nm)."""
+    E = 1239.842 / np.asarray(lam, dtype=float)
+    E0 = 3.39 + 1.216 * x
+    Ed = 28.07 + 3.373 * x
+    return np.sqrt(1 + E0 * Ed / (E0 ** 2 - E ** 2) + 0j)
+
+
+def _utaka(x, y):
+    E0 = 3.391 + 0.524 * x - 1.891 * y + 1.62 * x * y + 0.595 * x * x * (1 - y)
+    Ed = 28.91 + 7.54 * x + y * (12.36 * x - 12.71)
+    return E0, Ed
+
+
+def eg_ingaasp_xy(x, y):
+    """In(1-x)Ga(x)As(y)P(1-y) direct gap at 300 K (eV), any x, y (unstrained bulk value)."""
+    return (1.35 + 0.668 * x - 1.068 * y + 0.758 * x * x + 0.078 * y * y - 0.069 * x * y
+            - 0.322 * x * x * y + 0.03 * x * y * y)
+
+
+def ingaasp_xy(lam, x, y):
+    """In(1-x)Ga(x)As(y)P(1-y), any composition (lattice matched or strained), in the Afromowitz form with
+    the E0, Ed polynomials of K. Utaka et al., Jpn. J. Appl. Phys. 19, L137 (1980) (the model Vertical uses).
+    For lattice matching (y = 2.197x) it reduces to the Fiedler-Schlachetzki model of 'InGaAsP'."""
+    E0, Ed = _utaka(x, y)
+    return afromowitz(_E(lam), E0, Ed, eg_ingaasp_xy(x, y))
+
+
 def eg_inalgaas(X, _=0.0):
     """300 K band gap of (Al0.48In0.52As)_X (Ga0.47In0.53As)_(1-X) on InP (eV): end points
     0.748 eV (Coldren & Corzine Table 1.1) and 1.45 eV, small bowing 0.05 eV fitted to the
@@ -257,6 +295,18 @@ register("InGaAsP", ingaasp, "InGaAsP / InP (lattice matched)", "InP-based", "y 
                    "Eg = 1.35 - 0.72y + 0.12y^2 (Nahory et al.).",
          notes="In(1-x)Ga(x)As(y)P(1-y) lattice matched to InP, x ~ y/2.2. y = 0 is InP, y = 1 is In0.53Ga0.47As. "
                "Complex above the band gap (approximate).")
+register("AlGaInP", algainp, "AlxGa0.51-xIn0.49P / GaAs", "GaAs-based", "x (Al)", None, x_range=(0, 0.51),
+         bandgap=eg_algainp,
+         reference="H. Tanaka, Y. Kawamura, H. Asahi, J. Appl. Phys. 59, 985 (1986) (single-oscillator fit). Same model "
+                   "as Vertical. Band gap: approximate direct gap, for display.",
+         notes="Lattice matched to GaAs. x = 0 is Ga0.51In0.49P, x = 0.51 is Al0.51In0.49P; (AlzGa1-z)0.5In0.5P has "
+               "z = x/0.51. Real index, valid below the band gap.")
+register("InGaAsP_xy", ingaasp_xy, "InGaAsP, any x, y (strained)", "InP-based", "x (Ga)", "y (As)",
+         bandgap=eg_ingaasp_xy,
+         reference="K. Utaka, Y. Suematsu, K. Kishino, H. Kawanishi, Jpn. J. Appl. Phys. 19, L137 (1980) (E0, Ed); "
+                   "Afromowitz form. Same model as Vertical's InGaAsP.",
+         notes="In(1-x)Ga(x)As(y)P(1-y) with independent x and y (e.g. strained wells). Lattice matched to InP when "
+               "y = 2.197x. Unstrained bulk band gap.")
 register("InAlGaAs", inalgaas, "InAlGaAs / InP (lattice matched)", "InP-based", "X (AlInAs fraction)", None,
          x_range=(0.3, 1.0), bandgap=eg_inalgaas, valid_nm=(800, 2000),
          reference="M. J. Mondry, D. I. Babic, J. E. Bowers, L. A. Coldren, IEEE Photon. Technol. Lett. 4, 627 (1992) "
