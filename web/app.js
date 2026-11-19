@@ -708,6 +708,7 @@ $$("#tabs button").forEach((b) => b.addEventListener("click", () => {
   $$(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-" + b.dataset.tab));
   const tab = b.dataset.tab;
   if (tab === "refl") runRefl();
+  if (tab === "dbr" && !S.dbr) runDbr();
   if (tab === "layers") renderLayerTable();
   if (tab === "about") $("#about").innerHTML = window.ABOUT_HTML || "";
   window.dispatchEvent(new Event("resize"));
