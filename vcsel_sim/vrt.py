@@ -55,8 +55,14 @@ def _read_name_after(b, p):
     raise ValueError("could not locate object name in .vrt")
 
 
+def _hdr(b, tag_pos):
+    """Bytes from the 0xFFFD tag to the first double. Older Vertical builds write a
+    0xFFFC schema word plus 4 bytes (14); newer builds a 0xFFFB word plus 2 bytes (12)."""
+    return 14 if b[tag_pos + 8] == 0xFC else 12
+
+
 def _layer_fields(b, tag_pos):
-    p = tag_pos + 14
+    p = tag_pos + _hdr(b, tag_pos)
     vals = struct.unpack_from("<10d", b, p)
     return vals
 
@@ -79,11 +85,12 @@ def _parse_object(b, pos):
         return g, end
     vals = _layer_fields(b, pos)
     x, y, nr, ni, dop, thick, absn, wl, tflag, eg = vals
-    name, reps, end = _read_name_after(b, pos + 14 + 80)
+    h = _hdr(b, pos)
+    name, reps, end = _read_name_after(b, pos + h + 80)
     # The 16-bit code after the tag is Vertical's material model (0 generic, 1 AlGaAs, 4 InGaAs,
     # 6 SiO2, 13/14 boundary media ...), NOT the layer type. The "active" flag is the 16-bit word
     # 10 bytes after the ten doubles (1 = active layer).
-    is_active = struct.unpack_from("<H", b, pos + 14 + 80 + 10)[0] == 1
+    is_active = struct.unpack_from("<H", b, pos + h + 80 + 10)[0] == 1
     lt = "active" if is_active else ("n-type" if dop < 0 else "p-type" if dop > 0 else "undoped")
     lay = Layer(name=name, material="AlGaAs", x=x, y=y, thickness=thick, thickness_unit="nm",
                 index_mode="fixed", n_real=nr, n_imag=-ni,
@@ -201,7 +208,7 @@ def _layer_tags(b):
     out = []
     i = b.find(b"\xfd\xff")
     while i >= 0:
-        if b[i + 8:i + 10] == b"\xfc\xff":
+        if b[i + 8:i + 10] in (b"\xfc\xff", b"\xfb\xff"):
             out.append(i)
         i = b.find(b"\xfd\xff", i + 2)
     return out
