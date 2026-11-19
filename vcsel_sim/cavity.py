@@ -155,7 +155,8 @@ def cavity_report(model, analysis):
     def losses(rt_l, t_up, t_dn, Lcm, mode):
         Rup, Rdn = rt_to_reflectance(t_up, mode), rt_to_reflectance(t_dn, mode)
         ai = rt_to_per_length(rt_l, Lcm, mode)
-        am = float(np.log(1 / (Rup * Rdn)) / (2 * Lcm))            # (1/L) ln(1/sqrt(R_up R_down))
+        RR = Rup * Rdn
+        am = float(np.log(1 / RR) / (2 * Lcm)) if RR > 0 else float("nan")   # (1/L) ln(1/sqrt(R_up R_down))
         return ai, am, Rup, Rdn
 
     def block(Lt, Lb, enh, rts=exact_rt, mode=None):

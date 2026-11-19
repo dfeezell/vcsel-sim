@@ -65,13 +65,16 @@ input[type=number]:focus, input[type=text]:focus, select:focus { outline: 2px so
 .menu-sep { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding: 8px 10px 2px; }
 
 /* ---------- layout ---------- */
-.layout { flex: 1; display: grid; grid-template-columns: minmax(380px, 470px) 1fr; gap: 12px; padding: 12px; min-height: 0; }
-.left { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-.right { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.layout { flex: 1; display: grid; grid-template-columns: minmax(360px, 470px) minmax(0, 1fr); gap: 12px; padding: 12px; min-height: 0; }
+.left { min-width: 0; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.right { min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; min-height: 0; }
 .stack-panel { flex: 1.6; }
 body.view-diagram .stack-panel { flex: 2.2; }
 .props-panel { flex: 1; }
+body.props-collapsed .props-panel { flex: none; }
+body.props-collapsed #props { display: none; }
+#btn-props { font-size: 12px; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .stack-panel .panel-head h2 { flex: 1 1 120px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stack-panel .panel-head .stack-tools { flex-basis: 100%; }
@@ -82,14 +85,14 @@ body.view-diagram .stack-panel { flex: 2.2; }
 .stack-tools { display: flex; gap: 2px; flex-wrap: wrap; }
 .panel-head .seg button { padding: 2px 8px; font-size: 12px; }
 #btn-wide { font-size: 12px; }
-body.wide-stack .layout { grid-template-columns: minmax(420px, 48%) 1fr; }
+body.wide-stack .layout { grid-template-columns: minmax(420px, 48%) minmax(0, 1fr); }
 .stack-diagram { display: none; }
 body.view-diagram .stack-cols, body.view-diagram #stack { display: none; }
 body.view-diagram .stack-diagram { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
 /* ---------- stack diagram ---------- */
-.dg-palette { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 4px 10px; border-bottom: 1px solid var(--line-2); }
-.dg-hint { color: var(--muted); font-size: 11.5px; }
+.dg-palette { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; gap: 4px; align-items: center; padding: 4px 10px; flex: none; border-bottom: 1px solid var(--line-2); }
+.dg-hint { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
 .dg-palette select { font-size: 11.5px; padding: 1px 4px; }
 .chip { border: 1px dashed var(--accent-2); background: var(--accent-soft); color: var(--accent); border-radius: 12px; padding: 1px 8px; font-size: 11.5px; cursor: grab; user-select: none; white-space: nowrap; }
 .chip:active { cursor: grabbing; }
@@ -109,6 +112,13 @@ body.view-diagram .stack-diagram { display: flex; flex-direction: column; flex: 
 .dg-layer .dg-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 3em; }
 .dg-layer .dg-meta { margin-left: auto; opacity: .85; font-family: var(--mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
 .dg-layer .badge { background: rgba(255,255,255,.85); }
+.dg-blocks.fitted .dg-ghead { padding: 1px 8px; }
+.dg-blocks.fitted .dg-group { margin: 2px 0; }
+.dg-blocks.fitted .dg-kids { padding: 1px 3px; }
+.dg-layer.tiny { font-size: 10px; }
+.dg-layer.tiny .badge { display: none; }
+.dg-palette .pb, .dg-title .pb { border: 1px solid var(--line); background: #fff; border-radius: 5px; padding: 1px 7px; font-size: 11.5px; cursor: pointer; color: var(--ink-2); }
+.dg-palette .pb:hover, .dg-title .pb:hover { background: var(--line-2); }
 .dg-layer.sel { outline: 3px solid var(--accent); outline-offset: -3px; z-index: 1; }
 .dg-group { border: 1px solid #9aa5b5; border-radius: 5px; margin: 4px 0; background: #fbfcfd; }
 .dg-group.sel { outline: 2px solid var(--accent); }
@@ -168,11 +178,11 @@ body.view-diagram .stack-diagram { display: flex; flex-direction: column; flex: 
 
 /* ---------- properties ---------- */
 .props { overflow: auto; padding: 10px 12px; }
-.form { display: grid; grid-template-columns: 130px 1fr; gap: 7px 10px; align-items: center; }
+.form { display: grid; grid-template-columns: minmax(84px, 130px) minmax(0, 1fr); gap: 7px 10px; align-items: center; }
 .form label { color: var(--ink-2); }
 .form .full { grid-column: 1 / -1; }
-.form .pair { display: flex; gap: 6px; align-items: center; }
-.form .pair input[type=number] { width: 110px; }
+.form .pair { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.form .pair input[type=number] { width: 110px; max-width: 100%; }
 .form .hint { color: var(--muted); font-size: 11.5px; }
 .form input[type=text], .form select { width: 100%; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
@@ -215,7 +225,12 @@ table.t th, table.t td { padding: 5px 8px; border-bottom: 1px solid var(--line-2
 table.t th { position: sticky; top: 0; background: #fafbfc; color: var(--ink-2); font-weight: 600; font-size: 11.5px; z-index: 1; }
 table.t td.n { font-family: var(--mono); text-align: right; white-space: nowrap; }
 table.t tr.sec td { background: var(--line-2); font-weight: 600; color: var(--ink); padding-top: 8px; }
-table.t td.def { color: var(--muted); font-size: 11.5px; }
+table.t td.def { color: var(--muted); font-size: 11.5px; min-width: 140px; }
+table.res-table { table-layout: fixed; }
+table.res-table td, table.res-table th { overflow-wrap: anywhere; }
+table.res-table td.def { min-width: 0; }
+table.res-table td.n { white-space: normal; }
+table.res-table td.cx { font-size: 11.5px; }
 #results { padding: 4px 12px 16px; overflow: auto; }
 #refl-table { padding: 4px 12px; }
 

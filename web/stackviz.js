@@ -15,12 +15,12 @@ const PALETTE = {
   oxide: { label: "Oxide layer", hint: "AlOx aperture layer, 20 nm", make: () => newLayer({ name: "AlOx", material: "AlOx", thickness: 20, thickness_unit: "nm" }) },
 };
 
-const DG = { drag: null, scale: "log" };
-try { DG.scale = localStorage.getItem("vcsel-dg-scale") || "log"; } catch (_) { /* */ }
+const DG = { drag: null, scale: "fit" };
+try { DG.scale = localStorage.getItem("vcsel-dg-scale2") || "fit"; } catch (_) { /* */ }
 
 function dgHeight(d) {
   if (!(d > 0)) return 18;
-  if (DG.scale === "equal") return 24;
+  if (DG.scale === "equal") return 26;
   return Math.max(18, Math.min(80, 12 + 26 * Math.log10(1 + d / 8)));
 }
 function textOn(bg) {
@@ -162,28 +162,55 @@ function bindDiagram(root, handlers) {
 }
 
 /* ------------------------------------------------------------------ main stack panel: list / diagram views */
-const VIEW = { mode: "list", wide: false };
-try { VIEW.mode = localStorage.getItem("vcsel-stack-view") || "list"; VIEW.wide = localStorage.getItem("vcsel-stack-wide") === "1"; } catch (_) { /* */ }
+const VIEW = { mode: "diagram", wide: false };
+try { VIEW.mode = localStorage.getItem("vcsel-stack-view2") || "diagram"; VIEW.wide = localStorage.getItem("vcsel-stack-wide") === "1"; } catch (_) { /* */ }
 
 function renderDiagramView() {
   const host = $("#stack-diagram"); if (!host || !S.design || VIEW.mode !== "diagram") return;
   const keep = $(".dg-blocks", host)?.scrollTop || 0;
   const pal = Object.entries(PALETTE).map(([k, p]) => `<span class="chip" draggable="true" data-tpl="${k}" title="Drag into the stack: ${esc(p.hint)}">${esc(p.label)}</span>`).join("");
   host.innerHTML = `<div class="dg-palette"><span class="dg-hint">Drag in:</span>${pal}
-      <span class="spacer"></span><label class="dg-hint">Heights <select id="dg-scale"><option value="log">by thickness</option><option value="equal">equal</option></select></label></div>
+      <span class="spacer"></span><label class="dg-hint">Heights <select id="dg-scale"><option value="fit">fit panel</option><option value="log">by thickness</option><option value="equal">equal</option></select></label>
+      <button class="pb" data-fig="png" title="Download a drawing of the stack as PNG">PNG</button><button class="pb" data-fig="svg" title="Download a drawing of the stack as SVG">SVG</button></div>
     <div class="dg-body"><div class="dg-blocks">${diagramHTML(S.design, S.nodeInfo, { selKey: S.sel.join(","), editable: true })}</div>
       <div class="dg-strip" title="Whole stack to scale; click a layer to select it"></div></div>`;
   $("#dg-scale", host).value = DG.scale;
-  $(".dg-blocks", host).scrollTop = keep;
+  const blocks = $(".dg-blocks", host);
+  if (DG.scale === "fit") fitBlocks(blocks);
+  blocks.scrollTop = keep;
   const strip = $(".dg-strip", host);
-  strip.innerHTML = stripSVG(S.design, S.nodeInfo, S.sel.join(","), Math.max(strip.clientHeight - 4, 120));
+  strip.innerHTML = stripSVG(S.design, S.nodeInfo, S.sel.join(","), Math.max(blocks.clientHeight - 4, 120));
+  VIEW.lastSize = `${host.clientWidth}x${host.clientHeight}`;
   const sel = $(".dg-blocks .sel", host); if (sel && VIEW.scrollToSel) { sel.scrollIntoView({ block: "nearest" }); VIEW.scrollToSel = false; }
+}
+/* Shrink layer blocks so the whole stack fits the visible panel (thickest layers stay tallest). */
+function fitBlocks(blocks) {
+  blocks.classList.remove("fitted");
+  const avail = blocks.clientHeight; if (blocks.scrollHeight <= avail + 1) return;
+  blocks.classList.add("fitted");
+  const layers = $$(".dg-layer", blocks);
+  for (let pass = 0; pass < 3 && blocks.scrollHeight > avail + 1; pass++) {
+    const hs = layers.map((l) => l.getBoundingClientRect().height);
+    const sum = hs.reduce((a, b) => a + b, 0); if (!sum) return;
+    const fixed = blocks.scrollHeight - sum;
+    const f = Math.max((avail - fixed - 2) / sum, 0.05);
+    layers.forEach((l, i) => {
+      const h = Math.max(11, hs[i] * f); l.style.height = h.toFixed(1) + "px";
+      l.classList.toggle("tiny", h < 17);
+    });
+  }
 }
 function initStackViews() {
   const host = $("#stack-diagram");
+  host.addEventListener("click", (e) => { const b = e.target.closest("[data-fig]"); if (b) exportStackFigure(S.design, S.nodeInfo, b.dataset.fig, slug()); });
+  if (window.ResizeObserver) new ResizeObserver(() => {
+    if (VIEW.mode !== "diagram" || !S.design) return;
+    const sz = `${host.clientWidth}x${host.clientHeight}`; if (sz === VIEW.lastSize) return;
+    clearTimeout(VIEW.rt); VIEW.rt = setTimeout(renderDiagramView, 120);
+  }).observe(host);
   bindDiagram(host, { editable: true, onSelect: (p) => { S.sel = p; renderStack(); renderProps(); } });
   host.addEventListener("change", (e) => {
-    if (e.target.id === "dg-scale") { DG.scale = e.target.value; try { localStorage.setItem("vcsel-dg-scale", DG.scale); } catch (_) { /* */ } renderDiagramView(); }
+    if (e.target.id === "dg-scale") { DG.scale = e.target.value; try { localStorage.setItem("vcsel-dg-scale2", DG.scale); } catch (_) { /* */ } renderDiagramView(); }
   });
   host.addEventListener("dragstart", (e) => {
     const chip = e.target.closest(".chip[data-tpl]"); if (!chip) return;
@@ -195,11 +222,18 @@ function initStackViews() {
   });
   $$("#view-seg button").forEach((b) => b.addEventListener("click", () => setStackView(b.dataset.view)));
   $("#btn-wide").addEventListener("click", () => setWide(!VIEW.wide));
+  const setProps = (hide) => {
+    document.body.classList.toggle("props-collapsed", hide); $("#btn-props").textContent = hide ? "▸ Show" : "▾ Hide";
+    try { localStorage.setItem("vcsel-props-hidden", hide ? "1" : "0"); } catch (_) { /* */ }
+  };
+  $("#btn-props").addEventListener("click", () => setProps(!document.body.classList.contains("props-collapsed")));
+  let hid = false; try { hid = localStorage.getItem("vcsel-props-hidden") === "1"; } catch (_) { /* */ }
+  setProps(hid);
   setStackView(VIEW.mode, false); setWide(VIEW.wide, false);
 }
 function setStackView(mode, render = true) {
   VIEW.mode = mode === "diagram" ? "diagram" : "list";
-  try { localStorage.setItem("vcsel-stack-view", VIEW.mode); } catch (_) { /* */ }
+  try { localStorage.setItem("vcsel-stack-view2", VIEW.mode); } catch (_) { /* */ }
   $$("#view-seg button").forEach((b) => b.classList.toggle("on", b.dataset.view === VIEW.mode));
   document.body.classList.toggle("view-diagram", VIEW.mode === "diagram");
   if (render) renderStack();
@@ -210,6 +244,65 @@ function setWide(on, render = true) {
   $("#btn-wide").title = VIEW.wide ? "Make the stack panel narrower" : "Make the stack panel wider";
   $("#btn-wide").classList.toggle("on", VIEW.wide);
   if (render) { renderStack(); window.dispatchEvent(new Event("resize")); }
+}
+
+/* ------------------------------------------------------------------ stack drawing for export (SVG / PNG) */
+function stackFigureSVG(design, info, title) {
+  const nodes = info?.nodes || []; let k = 0;
+  const depthOf = (items, d = 0) => items.reduce((m, it) => Math.max(m, it.kind === "group" ? depthOf(it.children, d + 1) : d), d);
+  const maxD = depthOf(design.stack);
+  const LW = 150, BX = 24 + maxD * LW, BW = 250, TX = BX + BW + 16, W = TX + 430;
+  const F = 'font-family="Arial, Helvetica, sans-serif"';
+  const out = []; const brackets = []; let y = title ? 46 : 16;
+  const hgt = (d) => (d > 0 ? Math.max(22, Math.min(72, 14 + 26 * Math.log10(1 + d / 8))) : 22);
+  const label = (L, ni) => `${esc(L.name)} — ${esc(matText(L))}, ${fmt(ni.d, 5)} nm, n = ${fmt(ni.n, 5)}${L.layer_type === "active" ? " (active)" : ""}`;
+  const bnd = (L, txt, n) => {
+    out.push(`<rect x="${BX}" y="${y}" width="${BW}" height="30" fill="url(#hatch)" stroke="#555" stroke-width="1"/>
+      <rect x="${BX}" y="${y}" width="${BW}" height="30" fill="${layerColor(L)}" fill-opacity="0.35"/>
+      <text x="${TX}" y="${y + 19}" font-size="13" ${F} fill="#333"><tspan font-style="italic">${esc(L.name)}</tspan> — ${txt}, ${esc(matText(L))}${n ? `, n = ${fmt(n.n, 5)}` : ""}</text>`);
+    y += 30;
+  };
+  bnd(design.top, "exit medium", info?.top);
+  const walk = (items, depth) => items.forEach((it) => {
+    if (it.kind === "group") {
+      const y0 = y;
+      if (!it.children.length) { out.push(`<rect x="${BX}" y="${y}" width="${BW}" height="16" fill="none" stroke="#999" stroke-dasharray="4 3"/>`); y += 16; }
+      walk(it.children, depth + 1);
+      brackets.push({ y0, y1: y, depth, name: it.name, rep: it.repeats, role: it.role });
+    } else {
+      const ni = nodes[k++] || {}; const h = hgt(ni.d);
+      out.push(`<rect x="${BX}" y="${y.toFixed(1)}" width="${BW}" height="${h.toFixed(1)}" fill="${layerColor(it)}" stroke="#333" stroke-width="0.8"/>
+        <text x="${TX}" y="${(y + h / 2 + 4.5).toFixed(1)}" font-size="13" ${F} fill="#111">${label(it, ni)}</text>`);
+      y += h;
+    }
+  });
+  walk(design.stack, 0);
+  bnd(design.substrate, "substrate", info?.substrate);
+  for (const b of brackets) {
+    const x = BX - 10 - (maxD - 1 - b.depth) * LW; const xm = x - 8;
+    out.push(`<path d="M${x} ${b.y0 + 1} H${xm} V${b.y1 - 1} H${x}" fill="none" stroke="#1f5fae" stroke-width="1.6"/>`);
+    const cy = (b.y0 + b.y1) / 2; const role = b.role && b.role !== "none" ? (ROLES.find((r) => r[0] === b.role)?.[1] || b.role) : "";
+    out.push(`<text x="${xm - 6}" y="${(role ? cy - 2 : cy + 4.5).toFixed(1)}" text-anchor="end" font-size="13" ${F} fill="#1f5fae" font-weight="bold">${esc(b.name)} ×${b.rep}</text>`);
+    if (role) out.push(`<text x="${xm - 6}" y="${(cy + 13).toFixed(1)}" text-anchor="end" font-size="11.5" ${F} fill="#1f5fae">${esc(role)}</text>`);
+  }
+  const H = y + 16;
+  const head = title ? `<text x="16" y="26" font-size="16" font-weight="bold" ${F} fill="#111">${esc(title)}</text>` : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+<defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#fff"/><line x1="0" y1="0" x2="0" y2="8" stroke="#bbb" stroke-width="2"/></pattern></defs>
+<rect width="100%" height="100%" fill="#fff"/>${head}${out.join("\n")}</svg>`;
+}
+function exportStackFigure(design, info, fmtx, name) {
+  const title = `${design.name || "Layer stack"} (λ design = ${design.design_wavelength} nm; groups drawn once, ×N = repeats)`;
+  const svg = stackFigureSVG(design, info, title);
+  if (fmtx === "svg") return download(`${name}_stack.svg`, svg, "image/svg+xml");
+  const img = new Image(); const scale = 3;
+  img.onload = () => {
+    const c = document.createElement("canvas"); c.width = img.width * scale; c.height = img.height * scale;
+    const g = c.getContext("2d"); g.scale(scale, scale); g.drawImage(img, 0, 0);
+    c.toBlob((b) => download(`${name}_stack.png`, b, "image/png"), "image/png");
+  };
+  img.onerror = () => toast("Could not render the PNG; try SVG", true);
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 }
 
 /* ------------------------------------------------------------------ labelled plot toolbar */
@@ -261,11 +354,18 @@ function renderDbrStructure() {
   const host = $("#dbr-structure"); if (!host) return;
   const d = dbrDesign(); if (!d) { host.innerHTML = ""; return; }
   let info = null; try { info = call("node_info", JSON.stringify(d)); } catch (_) { /* */ }
-  host.innerHTML = `<div class="dg-title">Layer structure <span class="dg-hint">(incident medium on top)</span></div>
+  host.innerHTML = `<div class="dg-title">Layer structure <span class="dg-hint">(incident medium on top)</span>
+      <button class="pb" data-dfig="png" title="Download a drawing of this mirror as PNG">PNG</button><button class="pb" data-dfig="svg" title="Download a drawing of this mirror as SVG">SVG</button></div>
     <div class="dg-body small"><div class="dg-blocks">${diagramHTML(d, info, { editable: false })}</div><div class="dg-strip"></div></div>`;
   const strip = $(".dg-strip", host); strip.innerHTML = stripSVG(d, info, "", Math.max($(".dg-blocks", host).scrollHeight - 4, 120));
 }
 function initDbrExtras() {
+  $("#dbr-structure").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-dfig]"); if (!b) return;
+    const d = dbrDesign(); if (!d) return;
+    let info = null; try { info = call("node_info", JSON.stringify(d)); } catch (_) { /* */ }
+    exportStackFigure(d, info, b.dataset.dfig, `dbr_${$("#dbr-pairs").value}pairs`);
+  });
   $("#btn-dbr-layers").addEventListener("click", () => {
     const d = dbrDesign(); if (!d) return;
     try { const r = call("csv_export", JSON.stringify(d), "structure", "{}"); download(`dbr_${$("#dbr-pairs").value}pairs_layers.csv`, r.csv); } catch (e) { toast(e.message, true); }

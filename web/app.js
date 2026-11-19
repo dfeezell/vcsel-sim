@@ -555,7 +555,7 @@ function renderResults() {
   const el = $("#results"); const A = S.analysis;
   if (!A) { el.innerHTML = `<p class="note" style="padding-top:12px">${hasActive() ? "Run the analysis (▶ Analyze)." : "No active layer in the structure. Set Layer type = active on the gain layers."}</p>`; return; }
   const r = A.results; const V = r.vertical || {}; const showV = $("#res-vertical").checked;
-  let h = `<table class="t"><thead><tr><th>Quantity</th><th class="r">Value</th><th>Unit</th>${showV ? '<th class="r">Vertical convention</th>' : ""}<th>Definition</th></tr></thead><tbody>`;
+  let h = `<table class="t res-table"><colgroup><col style="width:${showV ? 24 : 28}%"><col style="width:${showV ? 17 : 20}%"><col style="width:9%">${showV ? '<col style="width:17%">' : ""}<col></colgroup><thead><tr><th>Quantity</th><th class="r">Value</th><th>Unit</th>${showV ? '<th class="r">Vertical convention</th>' : ""}<th>Definition</th></tr></thead><tbody>`;
   for (const [sec, rows] of RES) {
     h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">${sec}</td></tr>`;
     for (const [key, label, unit, def, vkey] of rows) {
@@ -563,12 +563,12 @@ function renderResults() {
     }
     if (sec.startsWith("Round-trip budget")) h += cavityRows(r.cavity, showV);
   }
-  h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">Internal loss by region</td></tr>`;
-  for (const b of r.loss_breakdown) h += `<tr><td>${esc(b.region)}</td><td class="n">${fmt(b.rt_loss, 5)}</td><td>per round trip</td>${showV ? "<td></td>" : ""}<td class="def">${fmt(b.alpha_cm, 4)} cm⁻¹ of α<sub>i</sub></td></tr>`;
+  h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">Internal loss by region (fraction per round trip)</td></tr>`;
+  for (const b of r.loss_breakdown) h += `<tr><td>${esc(b.region)}</td><td class="n">${fmt(b.rt_loss, 5)}</td><td></td>${showV ? "<td></td>" : ""}<td class="def">${fmt(b.alpha_cm, 4)} cm⁻¹ of α<sub>i</sub></td></tr>`;
   h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">Transfer matrix at λ<sub>las</sub> (characteristic [E,H] matrix, substrate → top)</td></tr>`;
   ["m11", "m12", "m21", "m22"].forEach((m, i) => {
     const c = r.matrix[i], cv = r.matrix_vertical[i];
-    h += `<tr><td>${m}</td><td class="n">${fmt(c[0], 6)} ${c[1] < 0 ? "−" : "+"} ${fmt(Math.abs(c[1]), 6)}i</td><td></td>${showV ? `<td class="n">${fmt(cv[0], 6)} ${cv[1] < 0 ? "−" : "+"} ${fmt(Math.abs(cv[1]), 6)}i</td>` : ""}<td class="def">${i === 0 ? "this program: exp(−iωt), k&gt;0 = loss; Vertical column: Vertical's sign convention" : ""}</td></tr>`;
+    h += `<tr><td>${m}</td><td class="n cx">${fmt(c[0], 6)} ${c[1] < 0 ? "−" : "+"} ${fmt(Math.abs(c[1]), 6)}i</td><td></td>${showV ? `<td class="n cx">${fmt(cv[0], 6)} ${cv[1] < 0 ? "−" : "+"} ${fmt(Math.abs(cv[1]), 6)}i</td>` : ""}<td class="def">${i === 0 ? "this program: exp(−iωt), k&gt;0 = loss; Vertical column: Vertical's sign convention" : ""}</td></tr>`;
   });
   h += `</tbody></table><p class="note">Solved in ${fmt(A.ms, 3)} ms. “Vertical convention” reproduces Vertical's numerical rules (|E|² sampled at the chosen point spacing, Γ<sub>enh</sub> relative to peak|E|²/2, transmission split by |E|² at the boundaries) for cross-checking old results; the Value column is the exact energy balance. See Help &amp; theory.</p>`;
   el.innerHTML = h;

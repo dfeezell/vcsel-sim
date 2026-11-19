@@ -318,7 +318,10 @@ def rt_to_per_length(rt, L_cm, rt_model="linear"):
 def rt_to_reflectance(t, rt_model="linear"):
     """Effective mirror reflectance from the round-trip transmission through that mirror:
     linear R = exp(-t) (Vertical / course notes), exact R = 1 - t."""
-    return float(1.0 - t) if rt_model == "exact" else float(np.exp(-t))
+    if rt_model == "exact":
+        # t >= 1 means the cavity loses more than its stored energy per round trip; R = 1 - t is then undefined
+        return float(1.0 - t) if t < 1.0 else float("nan")
+    return float(np.exp(-t))
 
 
 def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="bottom",
