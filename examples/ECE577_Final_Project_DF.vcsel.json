@@ -5,14 +5,14 @@
  "design_wavelength": 980.0,
  "top": {
   "name": "Air",
-  "material": "Generic",
+  "material": "Air",
   "x": 0.0,
   "y": 0.0,
   "thickness": 0,
   "thickness_unit": "nm",
-  "index_mode": "fixed",
-  "n_real": 3.3,
-  "n_imag": 3.9,
+  "index_mode": "model",
+  "n_real": 1.0,
+  "n_imag": 0.0,
   "absorption": 0.0,
   "layer_type": "other",
   "doping": 0.0,
@@ -256,5 +256,5 @@
    ]
   }
  ],
- "notes": "Imported from Vertical .vrt (indices fixed at the values stored in the file)."
+ "notes": "Imported from Vertical .vrt (indices fixed at the values stored in the file). Top exit medium set to real air (n = 1). The original .vrt stores it as n = 3.3 - 3.9i, which is how Vertical gets Gth = 2111 cm^-1; with real air Gth is lower."
 }

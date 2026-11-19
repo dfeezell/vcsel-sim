@@ -534,6 +534,9 @@ function plotRefl() {
     yaxis2: { title: { text: "Phase (deg, dotted)" }, overlaying: "y", side: "right", showgrid: false, range: [-180, 180], showline: true, linecolor: "#444", ticks: "outside" },
     legend: { orientation: "h", x: 0, y: 1.08 },
     shapes: [{ type: "line", x0: R.design_wavelength, x1: R.design_wavelength, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],
+    // spectra that could not be computed: say why right on the plot, not only in the table below
+    annotations: errs.map((e, i) => ({ xref: "paper", yref: "paper", x: 0.5, y: 0.5 - i * 0.16, showarrow: false, align: "center", width: 520,
+      text: esc(e).replace(/(.{1,80})(\s|$)/g, "$1<br>"), font: { size: 12.5, color: "#b35c00" }, bgcolor: "#fff8e6", bordercolor: "#f0c36d", borderpad: 6 })),
   };
   Plotly.react($("#plot-refl"), traces, layout, PLOT_CONFIG);
   const rows = Object.entries(R.spectra).filter(([, sp]) => !sp.error).map(([p, sp]) => `<tr><td><span class="sw" style="display:inline-block;background:${PART_COLOR[p]}"></span> ${PART_LABEL[p]}</td>
