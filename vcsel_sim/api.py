@@ -82,7 +82,7 @@ def run_analysis(design_json, options_json="{}"):
                           spacing_passive=float(o.get("spacing_passive", 2.0)),
                           spacing_active=float(o.get("spacing_active", 0.1)),
                           internal_efficiency=float(o.get("internal_efficiency", 1.0)),
-                          rt_model=o.get("rt_model", "linear"))
+                          rt_model=o.get("rt_model", "exact"))
         prof = a.field
         res = a.summary()
         try:

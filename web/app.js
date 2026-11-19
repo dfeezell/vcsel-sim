@@ -636,8 +636,8 @@ function renderResults() {
 $("#res-vertical").addEventListener("change", renderResults);
 $("#rt-model").addEventListener("change", () => { runAnalysis(false); persistOpts(); });
 ["#f-sp-p", "#f-sp-a"].forEach((sel) => $(sel).addEventListener("change", () => { runAnalysis(false); persistOpts(); }));
-function persistOpts() { try { localStorage.setItem("vcsel-sim-opts", JSON.stringify({ rt: $("#rt-model").value, sp: $("#f-sp-p").value, sa: $("#f-sp-a").value })); } catch (_) { /* */ } }
-(function restoreOpts() { try { const o = JSON.parse(localStorage.getItem("vcsel-sim-opts") || "null"); if (o) { $("#rt-model").value = o.rt || "linear"; $("#f-sp-p").value = o.sp || 1; $("#f-sp-a").value = o.sa || 0.02; } } catch (_) { /* */ } })();
+function persistOpts() { try { localStorage.setItem("vcsel-sim-opts-v2", JSON.stringify({ rt: $("#rt-model").value, sp: $("#f-sp-p").value, sa: $("#f-sp-a").value })); } catch (_) { /* */ } }
+(function restoreOpts() { try { const o = JSON.parse(localStorage.getItem("vcsel-sim-opts-v2") || "null"); if (o) { $("#rt-model").value = o.rt || "exact"; $("#f-sp-p").value = o.sp || 1; $("#f-sp-a").value = o.sa || 0.02; } } catch (_) { /* */ } })();
 
 /* ------------------------------------------------------------------ layer table */
 function renderLayerTable() {
