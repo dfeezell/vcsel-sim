@@ -101,7 +101,7 @@ def test_cavity_report_ece577():
     assert rep["complete"]
     assert K["L"] == pytest.approx(rep["L_cav"] + K["L_eff_top"] + K["L_eff_bottom"])
     assert K["modal_gain"] == pytest.approx(K["alpha_i"] + K["alpha_m"], rel=1e-9)   # self-consistency
-    assert K["alpha_m"] == pytest.approx(K["alpha_m_R"], rel=1e-9)
+    assert K["alpha_m"] == pytest.approx(a.rt_transmission / (2 * K["L"] * 1e-7), rel=1e-9)   # linear form
     assert abs(2 * K["chi"] - round(2 * K["chi"])) < 0.15        # close to a half-wave multiple
 
 
@@ -112,3 +112,18 @@ def test_dbr_designer_matches_analytic():
     assert r["ok"]
     assert r["at_design"]["R"] == pytest.approx(r["R_analytic"], rel=1e-9)
     assert r["pairs_needed"]["0.99"] == next(i + 1 for i, v in enumerate(r["R_vs_pairs"]) if v >= 0.99)
+
+
+def test_exact_round_trip_model():
+    from vcsel_sim.vrt import read_vrt
+    from vcsel_sim import cavity
+    s = read_vrt((EX / "ECE577_Final_Project_DF.vrt").read_bytes())
+    lin = laser.analyze(s)
+    ex = laser.analyze(s, rt_model="exact")
+    assert ex.threshold_gain == lin.threshold_gain                       # the solve itself is unchanged
+    assert ex.R_top == pytest.approx(1 - ex.rt_transmission_top)
+    assert lin.R_top == pytest.approx(np.exp(-lin.rt_transmission_top))
+    assert 0 < ex.alpha_i / lin.alpha_i - 1 < 0.01                        # -ln(1-x) > x, small difference
+    K = cavity.cavity_report(laser.Model(s), ex)["coldren"]
+    assert K["modal_gain"] == pytest.approx(K["alpha_i"] + K["alpha_m"], rel=1e-12)
+    assert K["alt"]["rt_model"] == "linear"

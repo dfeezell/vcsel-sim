@@ -294,6 +294,7 @@ class Analysis:
     matrix: tuple = ()                    # characteristic matrix bottom->top, this program's convention
     matrix_vertical: tuple = ()           # same matrix in Vertical's sign convention (exp(+i w t))
     vertical: dict = field(default_factory=dict)   # quantities computed with Vertical's numerical conventions
+    rt_model: str = "linear"              # how round-trip fractions were converted (see rt_to_per_length)
     field: Optional[FieldProfile] = None
 
     def summary(self) -> dict:
@@ -303,9 +304,32 @@ class Analysis:
         return d
 
 
+def rt_to_per_length(rt, L_cm, rt_model="linear"):
+    """Convert a round-trip power fraction to a loss per unit length (cm^-1).
+
+    linear : rt / 2L                  (small-argument form, what Vertical uses)
+    exact  : -ln(1 - rt) / 2L         (from rt = 1 - exp(-2 alpha L))
+    """
+    if rt_model == "exact":
+        return float(-np.log(max(1.0 - rt, 1e-300)) / (2 * L_cm))
+    return float(rt / (2 * L_cm))
+
+
+def rt_to_reflectance(t, rt_model="linear"):
+    """Effective mirror reflectance from the round-trip transmission through that mirror:
+    linear R = exp(-t) (Vertical / course notes), exact R = 1 - t."""
+    return float(1.0 - t) if rt_model == "exact" else float(np.exp(-t))
+
+
 def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="bottom",
-            spacing_passive=2.0, spacing_active=0.1, internal_efficiency=1.0) -> Analysis:
-    """Threshold + full analysis of a VCSEL structure (Vertical's 'Analysis' command)."""
+            spacing_passive=2.0, spacing_active=0.1, internal_efficiency=1.0,
+            rt_model="linear", vertical_spacing=0.1) -> Analysis:
+    """Threshold + full analysis of a VCSEL structure (Vertical's 'Analysis' command).
+
+    rt_model: "linear" converts round-trip fractions to per-length losses and mirror
+    reflectances with the small-argument forms Vertical uses; "exact" uses the
+    exponential forms. spacing_* only set the plotted field samples: every integral
+    is analytic. vertical_spacing is the |E|^2 sampling used for the Vertical column."""
     model = Model(structure)
     th = solve_threshold(model, lam_guess, g_guess)
     lam, g = th.wavelength, th.gain
@@ -343,7 +367,10 @@ def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="botto
     eta_b = internal_efficiency * rt_t_bot / rt_gain
     c_cm_ps = 2.99792458e-2
     n_avg = float(np.sum(nl.real * W) / np.sum(W))
-    tot = (rt_loss + rt_t) / (2 * Lcm)
+    a_i = rt_to_per_length(rt_loss, Lcm, rt_model)
+    R_t, R_b = rt_to_reflectance(rt_t_top, rt_model), rt_to_reflectance(rt_t_bot, rt_model)
+    a_mt, a_mb = float(np.log(1 / R_t) / (2 * Lcm)), float(np.log(1 / R_b) / (2 * Lcm))
+    tot = a_i + a_mt + a_mb
     tau = n_avg / (c_cm_ps * tot) if tot > 0 else float("inf")
 
     # field profile (|E|^2, Vertical style) and normalisation
@@ -355,13 +382,22 @@ def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="botto
     act_layers = np.where(act)[0]
     act_pts = np.isin(prof.layer_index, act_layers)
     peak = float(prof.E2[in_stack].max())
+    # refine the peak inside the layer holding the largest sample (independent of plot spacing)
+    j_pk = int(prof.layer_index[in_stack][np.argmax(prof.E2[in_stack])])
+    if 0 <= j_pk < L:
+        _, e2f = _layer_samples(model, lam, nn, A, B, j_pk + 1, max(min(model.d[j_pk] / 20000, 0.005), 1e-4))
+        peak = max(peak, float(e2f.max() / norm))
 
     # Vertical-convention quantities (numerical rules reproduced for cross-checking)
     s_sum = 0.0
     for j in act_layers:
-        u, e2 = _layer_samples(model, lam, nn, A, B, j + 1, spacing_active)
+        u, e2 = _layer_samples(model, lam, nn, A, B, j + 1, vertical_spacing)
         s_sum += e2.sum() * (u[1] - u[0])
-    enh_v = float(s_sum / norm / La / (peak / 2))
+    # Vertical takes the peak from its own samples (2 nm passive / 0.1 nm active)
+    pv = sample_field(model, lam, nn, A, B, 2.0, vertical_spacing)
+    in_v = (pv.layer_index >= 0) & (pv.layer_index < L)
+    peak_v = float(pv.E2[in_v].max() / norm)
+    enh_v = float(s_sum / norm / La / (peak_v / 2))
     rt_gain_v = 2 * g * 1e-7 * La * enh_v
     rt_t_v = rt_gain_v * rt_t / rt_gain
     split_top = E2_top_raw / (E2_top_raw + E2_bot_raw)
@@ -370,7 +406,7 @@ def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="botto
         "round trip gain": rt_gain_v, "round trip loss": rt_gain_v - rt_t_v,
         "round trip transmission": rt_t_v, "transmission up": rt_t_v * split_top,
         "transmission down": rt_t_v * (1 - split_top), "gain enhancement": enh_v,
-        "peak E2": peak, "E2 at active": float(prof.E2[act_pts].max()),
+        "peak E2": peak_v, "E2 at active": float(prof.E2[act_pts].max()),
         "E2 bottom": E2_bot_raw / norm, "E2 top": E2_top_raw / norm,
         "active thickness (nm)": La,
         "external efficiency": internal_efficiency * rt_t / rt_gain,
@@ -385,7 +421,8 @@ def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="botto
         key = f.top_group or f.layer.name
         breakdown.setdefault(key, 0.0)
         breakdown[key] += float(power[j] / Pref)
-    loss_breakdown = [{"region": k, "rt_loss": v, "alpha_cm": v / (2 * Lcm)} for k, v in breakdown.items()]
+    loss_breakdown = [{"region": k, "rt_loss": v, "alpha_cm": a_i * v / rt_loss if rt_loss else 0.0}
+                      for k, v in breakdown.items()]
 
     cav = model.cavity_mask()
     avg_core = float(np.sum(nl.real[cav] * model.d[cav]) / np.sum(model.d[cav])) if cav.any() else float("nan")
@@ -401,9 +438,8 @@ def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="botto
         rt_gain=rt_gain, rt_loss=rt_loss, rt_transmission=rt_t,
         rt_transmission_top=rt_t_top, rt_transmission_bottom=rt_t_bot,
         enhancement=enh, active_thickness=La, confinement=gamma, effective_length=Leff,
-        modal_gain=gamma * g, alpha_i=rt_loss / (2 * Lcm), alpha_m=rt_t / (2 * Lcm),
-        alpha_m_top=rt_t_top / (2 * Lcm), alpha_m_bottom=rt_t_bot / (2 * Lcm),
-        R_top=float(np.exp(-rt_t_top)), R_bottom=float(np.exp(-rt_t_bot)),
+        modal_gain=(gamma * g if rt_model != "exact" else a_i + a_mt + a_mb), alpha_i=a_i, alpha_m=a_mt + a_mb,
+        alpha_m_top=a_mt, alpha_m_bottom=a_mb, R_top=R_t, R_bottom=R_b, rt_model=rt_model,
         internal_efficiency=internal_efficiency, ext_eff=eta_t + eta_b, ext_eff_top=eta_t,
         ext_eff_bottom=eta_b, slope_top=eta_t * Eph, slope_bottom=eta_b * Eph, lifetime_ps=tau,
         normalization=normalize, peak_E2=peak, E2_active_max=float(prof.E2[act_pts].max()),

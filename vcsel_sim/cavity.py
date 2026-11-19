@@ -150,21 +150,30 @@ def cavity_report(model, analysis):
     a = analysis
     exact_rt = (a.rt_loss, a.rt_transmission, a.rt_transmission_top, a.rt_transmission_bottom)
 
-    def block(Lt, Lb, enh, rts=exact_rt):
+    from .laser import rt_to_per_length, rt_to_reflectance
+
+    def losses(rt_l, t_up, t_dn, Lcm, mode):
+        Rup, Rdn = rt_to_reflectance(t_up, mode), rt_to_reflectance(t_dn, mode)
+        ai = rt_to_per_length(rt_l, Lcm, mode)
+        am = float(np.log(1 / (Rup * Rdn)) / (2 * Lcm))            # (1/L) ln(1/sqrt(R_up R_down))
+        return ai, am, Rup, Rdn
+
+    def block(Lt, Lb, enh, rts=exact_rt, mode=None):
+        mode = mode or a.rt_model
+        other = "exact" if mode == "linear" else "linear"
         L = Lcav + Lt + Lb
         Lcm = L * 1e-7
         gam = enh * a.active_thickness / L
         rt_l, rt_t, t_up, t_dn = rts
-        Rup, Rdn = np.exp(-t_up), np.exp(-t_dn)
+        ai, am, Rup, Rdn = losses(rt_l, t_up, t_dn, Lcm, mode)
+        ai2, am2, Rup2, Rdn2 = losses(rt_l, t_up, t_dn, Lcm, other)
         return {
-            "L": L, "L_eff_top": Lt, "L_eff_bottom": Lb, "confinement": gam,
-            "modal_gain": gam * a.threshold_gain,
-            "alpha_i": rt_l / (2 * Lcm), "alpha_m": rt_t / (2 * Lcm),
-            "alpha_i_exp": -np.log(max(1 - rt_l, 1e-300)) / (2 * Lcm),
-            "alpha_m_exp": -np.log(max(1 - rt_t, 1e-300)) / (2 * Lcm),
-            "alpha_m_R": np.log(1 / np.sqrt(Rup * Rdn)) / Lcm,
-            "R_up": Rup, "R_down": Rdn,
-            "check_gain_minus_losses": gam * a.threshold_gain - (rt_l + rt_t) / (2 * Lcm),
+            "rt_model": mode, "L": L, "L_eff_top": Lt, "L_eff_bottom": Lb, "confinement": gam,
+            # linear: Gamma*g_th (identical to alpha_i + alpha_m); exact: alpha_i + alpha_m
+            "modal_gain": gam * a.threshold_gain if mode == "linear" else ai + am,
+            "modal_gain_gamma_g": gam * a.threshold_gain,
+            "alpha_i": ai, "alpha_m": am, "R_up": Rup, "R_down": Rdn,
+            "alt": {"rt_model": other, "alpha_i": ai2, "alpha_m": am2, "R_up": Rup2, "R_down": Rdn2},
             "chi": L * a.avg_index_rms / lam,
         }
 
@@ -175,7 +184,7 @@ def cavity_report(model, analysis):
     if V.get("gain enhancement"):
         rep["coldren_vertical_enh"] = block(top["L_eff"], bot["L_eff"], V["gain enhancement"],
                                             (V["round trip loss"], V["round trip transmission"],
-                                             V["transmission up"], V["transmission down"]))
+                                             V["transmission up"], V["transmission down"]), mode="linear")
     # passive mirror reflectance at the lasing wavelength, for comparison with exp(-trans.)
     from .laser import reflectance_spectrum
     for key, part in (("R_top_passive", "top_dbr"), ("R_bottom_passive", "bottom_dbr")):

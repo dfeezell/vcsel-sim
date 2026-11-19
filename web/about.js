@@ -40,6 +40,13 @@ Each DBR's penetration depth comes from the exact quarter-wave expressions</p>
 from which the modal gain, ⟨α<sub>i</sub>⟩, α<sub>m</sub>, R<sub>up</sub>, R<sub>down</sub> and the cavity optical thickness χ = L n<sub>eff</sub>/λ<sub>0</sub> follow.
 The Ch. 3 approximations (tanh(2mr)/2κ, Λ/4r, λ/4Δn) and a penetration depth taken from the computed reflection phase, ½|dφ/dβ|, are shown for comparison.
 This Γ is not the same quantity as the energy-weighted Γ further down the table. The two can differ by 10–20%.</p>
+<h3>Linear or exact round-trip conversion</h3>
+<p>The transfer-matrix solve gives the threshold gain and the round-trip fractions exactly. Turning those fractions into losses per length
+and mirror reflectances can be done two ways, chosen on the Results tab:</p>
+<ul><li><b>Linear (as Vertical):</b> α = RT/2L, R = exp(−trans.), Γg<sub>th</sub> = ⟨α<sub>i</sub>⟩ + α<sub>m</sub> exactly. This matches Vertical and the course notes.</li>
+<li><b>Exact:</b> RT = 1 − e<sup>−2αL</sup>, so α = −ln(1 − RT)/2L, and R = 1 − trans. Differences are of order RT/2, typically 0.1–0.5% for a VCSEL.</li></ul>
+<p>The field sampling on the Field tab only sets how finely |E|² is plotted. Every integral (gain, loss, Γ<sub>enh</sub>, confinement) is done analytically,
+and the peak |E|² is refined inside its layer, so the results do not depend on the sampling. The Vertical column always uses Vertical's 0.1 nm rule.</p>
 <h3>DBR design tab</h3>
 <p>Designs a quarter-wave mirror on its own. Choose the incident medium, the two layers and the exit medium, and set the number of pairs.
 The tab shows the spectrum, R at λ<sub>0</sub> (transfer matrix and analytic), the stopband width, the penetration depth, and how many pairs reach a target reflectance.

@@ -152,7 +152,8 @@ function runAnalysis(explicit = true) {
     if (explicit) toast("No active layer: set Layer type = active on the quantum wells to compute threshold.", true);
     return;
   }
-  const opts = { normalize: $("#f-norm").value, internal_efficiency: parseFloat($("#eta-i").value) || 1 };
+  const opts = { normalize: $("#f-norm").value, internal_efficiency: parseFloat($("#eta-i").value) || 1, rt_model: $("#rt-model").value,
+    spacing_passive: Math.max(parseFloat($("#f-sp-p").value) || 1, 0.01), spacing_active: Math.max(parseFloat($("#f-sp-a").value) || 0.02, 0.001) };
   try {
     const t0 = performance.now();
     S.analysis = call("run_analysis", designJSON(), JSON.stringify(opts));
@@ -501,9 +502,9 @@ const RES = [
     ["rt_transmission", "Round-trip transmission (mirror loss)", "", "power leaving top + bottom", "round trip transmission"],
     ["rt_transmission_top", "   … through top", "", "", "transmission up"], ["rt_transmission_bottom", "   … through bottom", "", "", "transmission down"]]],
   ["Losses per unit length (using the energy-based L below)", [
-    ["alpha_i", "Internal loss α<sub>i</sub>", "cm⁻¹", "RT loss / 2L"], ["alpha_m", "Mirror loss α<sub>m</sub>", "cm⁻¹", "RT transmission / 2L"],
+    ["alpha_i", "Internal loss α<sub>i</sub>", "cm⁻¹", "RT loss / 2L (linear) or −ln(1 − RT loss)/2L (exact)"], ["alpha_m", "Mirror loss α<sub>m</sub>", "cm⁻¹", "(1/2L) ln(1/(R<sub>top</sub>R<sub>bottom</sub>))"],
     ["alpha_m_top", "   … top mirror", "cm⁻¹"], ["alpha_m_bottom", "   … bottom mirror", "cm⁻¹"],
-    ["R_top", "Effective R<sub>top</sub>", "", "exp(−RT transmission up)"], ["R_bottom", "Effective R<sub>bottom</sub>", "", "exp(−RT transmission down)"]]],
+    ["R_top", "Effective R<sub>top</sub>", "", "exp(−trans. up) (linear) or 1 − trans. up (exact)"], ["R_bottom", "Effective R<sub>bottom</sub>", "", "exp(−trans. down) (linear) or 1 − trans. down (exact)"]]],
   ["Confinement", [
     ["active_thickness", "Active thickness L<sub>a</sub>", "nm", "sum of active layers", "active thickness (nm)"],
     ["enhancement", "Gain enhancement Γ<sub>enh</sub>", "", "⟨|E|²⟩ over active ÷ local standing-wave mean", "gain enhancement"],
@@ -532,11 +533,12 @@ function cavityRows(C, showV) {
   h += row(`Bottom DBR penetration L<sub>eff,2</sub>`, K.L_eff_bottom, "nm", "Coldren A7.25");
   h += row("Effective cavity length L", K.L, "nm", "L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>");
   h += row("Confinement factor Γ", K.confinement, "", "Γ<sub>enh</sub> L<sub>a</sub> / L (Vertical column: Vertical's Γ<sub>enh</sub> and round-trip values)", KV.confinement);
-  h += row("Modal gain Γg<sub>th</sub>", K.modal_gain, "cm⁻¹", "= ⟨α<sub>i</sub>⟩ + α<sub>m</sub>", KV.modal_gain);
-  h += row("Internal loss ⟨α<sub>i</sub>⟩", K.alpha_i, "cm⁻¹", `RT loss / 2L (small-argument form, as Vertical). Exponential form −ln(1−RT loss)/2L = ${fmt(K.alpha_i_exp, 5)}`, KV.alpha_i);
-  h += row("Mirror loss α<sub>m</sub>", K.alpha_m, "cm⁻¹", `RT transmission / 2L = (1/L) ln(1/√(R<sub>up</sub>R<sub>down</sub>)). Exponential form ${fmt(K.alpha_m_exp, 5)}`, KV.alpha_m);
-  h += row("R<sub>up</sub>", K.R_up, "", `exp(−trans. up). Passive top-DBR reflectance from the cavity: ${fmt(C.R_top_passive, 7)}`, KV.R_up);
-  h += row("R<sub>down</sub>", K.R_down, "", `exp(−trans. down). Passive bottom-DBR reflectance from the cavity: ${fmt(C.R_bottom_passive, 7)}`, KV.R_down);
+  h += row("Modal gain Γg<sub>th</sub>", K.modal_gain, "cm⁻¹", K.rt_model === "linear" ? "Γ g<sub>th</sub> = ⟨α<sub>i</sub>⟩ + α<sub>m</sub>" : `⟨α<sub>i</sub>⟩ + α<sub>m</sub> (exact); Γ g<sub>th</sub> = ${fmt(K.modal_gain_gamma_g, 6)}`, KV.modal_gain);
+  const lin = K.rt_model === "linear", X = K.alt, xn = lin ? "exact" : "linear";
+  h += row("Internal loss ⟨α<sub>i</sub>⟩", K.alpha_i, "cm⁻¹", `${lin ? "RT loss / 2L (linear, as Vertical)" : "−ln(1 − RT loss)/2L (exact)"}; ${xn}: ${fmt(X.alpha_i, 6)}`, KV.alpha_i);
+  h += row("Mirror loss α<sub>m</sub>", K.alpha_m, "cm⁻¹", `(1/L) ln(1/√(R<sub>up</sub>R<sub>down</sub>))${lin ? " = RT transmission / 2L" : ""}; ${xn}: ${fmt(X.alpha_m, 6)}`, KV.alpha_m);
+  h += row("R<sub>up</sub>", K.R_up, "", `${lin ? "exp(−trans. up)" : "1 − trans. up"}; ${xn}: ${fmt(X.R_up, 7)}. Passive top DBR from the cavity: ${fmt(C.R_top_passive, 7)}`, KV.R_up);
+  h += row("R<sub>down</sub>", K.R_down, "", `${lin ? "exp(−trans. down)" : "1 − trans. down"}; ${xn}: ${fmt(X.R_down, 7)}. Passive bottom DBR from the cavity: ${fmt(C.R_bottom_passive, 7)}`, KV.R_down);
   h += row("Cavity optical thickness χ", K.chi, "λ", `L n<sub>eff</sub>/λ<sub>0</sub>, n<sub>eff</sub> = average core index. Nearest half-wave multiple: ${half}`, KV.chi);
   if (P.L !== undefined) h += row("L using phase penetration depths", P.L, "nm", `check: depths from the computed mirror reflection phase, ½|dφ/dβ| (top ${fmt(P.L_eff_top, 5)}, bottom ${fmt(P.L_eff_bottom, 5)} nm); Γ = ${fmt(P.confinement, 5)}`);
   h += `<tr class="sec"><td colspan="${span}">DBR penetration depths at λ<sub>las</sub></td></tr>`;
@@ -567,6 +569,10 @@ function renderResults() {
   el.innerHTML = h;
 }
 $("#res-vertical").addEventListener("change", renderResults);
+$("#rt-model").addEventListener("change", () => { runAnalysis(false); persistOpts(); });
+["#f-sp-p", "#f-sp-a"].forEach((sel) => $(sel).addEventListener("change", () => { runAnalysis(false); persistOpts(); }));
+function persistOpts() { try { localStorage.setItem("vcsel-sim-opts", JSON.stringify({ rt: $("#rt-model").value, sp: $("#f-sp-p").value, sa: $("#f-sp-a").value })); } catch (_) { /* */ } }
+(function restoreOpts() { try { const o = JSON.parse(localStorage.getItem("vcsel-sim-opts") || "null"); if (o) { $("#rt-model").value = o.rt || "linear"; $("#f-sp-p").value = o.sp || 1; $("#f-sp-a").value = o.sa || 0.02; } } catch (_) { /* */ } })();
 
 /* ------------------------------------------------------------------ layer table */
 function renderLayerTable() {

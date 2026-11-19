@@ -104,6 +104,7 @@
         <label>x origin <select id="f-origin"><option value="top">top surface</option><option value="bottom">substrate interface</option></select></label>
         <label>Units <select id="f-units"><option value="nm">nm</option><option value="um">µm</option></select></label>
         <label><input type="checkbox" id="f-shade" checked> shade regions</label>
+        <label title="Spacing of the plotted |E|² points. All integrals are analytic, so results do not depend on this.">Sampling <input type="number" id="f-sp-p" value="1" min="0.01" max="20" step="0.1" style="width:56px"> nm passive, <input type="number" id="f-sp-a" value="0.02" min="0.001" max="1" step="0.01" style="width:64px"> nm active</label>
         <span class="spacer"></span>
         <button class="btn sm" data-export="plot-field" data-fmt="png">PNG</button>
         <button class="btn sm" data-export="plot-field" data-fmt="svg">SVG</button>
@@ -164,6 +165,8 @@
 
     <div class="tab" id="tab-results">
       <div class="plot-opts">
+        <label title="How round-trip fractions are turned into losses per length and mirror reflectances">Round trip → per length
+          <select id="rt-model"><option value="linear">Linear, small-argument (as Vertical)</option><option value="exact">Exact, exponential</option></select></label>
         <label><input type="checkbox" id="res-vertical" checked> Show Vertical-convention column</label>
         <label>Internal efficiency η<sub>i</sub> <input type="number" id="eta-i" value="1" min="0" max="1" step="0.01"></label>
         <span class="spacer"></span>
