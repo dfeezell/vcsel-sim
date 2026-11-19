@@ -158,6 +158,9 @@ def read_vrt(data: bytes, name="Imported Vertical design") -> Structure:
                     it.role = "bottom_dbr"
     s = Structure(name=name, design_wavelength=design_wl, top=top, substrate=sub, stack=items)
     s.notes = "Imported from Vertical .vrt (indices fixed at the values stored in the file)."
+    if "air" in top.name.lower() and top.material != "Air":
+        s.notes += (f" Vertical stored the top medium '{top.name}' as n = {top.n_real:g} - {top.n_imag:g}i (not real air); "
+                    "kept so results match Vertical.")
     if n_extra:
         s.notes += f" {n_extra} unused object(s) in Vertical's Extra area were ignored."
     return s

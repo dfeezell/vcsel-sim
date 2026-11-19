@@ -417,6 +417,7 @@ $("#props").addEventListener("click", (e) => {
     if (ni && ni.d) it.thickness = v === "nm" ? +ni.d.toFixed(4) : +(ni.d * ni.n / lam).toFixed(6);
   }
   if (f === "index_mode" && v === "fixed") { const ni = nodeValue(S.sel); if (ni) it.n_real = +ni.n.toFixed(6); }
+  if (f === "index_mode" && v === "model" && it.n_imag) { toast(`Cleared the fixed k = ${fmt(it.n_imag, 4)}; the material model now sets n and k`); it.n_imag = 0; }
   it[f] = v; changed();
 });
 $("#design-name").addEventListener("input", () => { S.design.name = $("#design-name").textContent.trim(); persist(); });
@@ -799,7 +800,10 @@ $("#file-input").addEventListener("change", async (e) => {
       const pyb = S.py.toPy(Array.from(buf));
       const r = JSON.parse(S.api.import_vrt_bytes(pyb, f.name)); pyb.destroy();
       if (!r.ok) throw new Error(r.error);
-      setDesign(r.design); toast(`Imported ${f.name} from Vertical`);
+      setDesign(r.design);
+      const tp = r.design.top; const fake = /air/i.test(tp.name) && tp.material !== "Air";
+      toast(fake ? `Imported ${f.name}. Note: Vertical stored its top "${tp.name}" as n = ${fmt(tp.n_real, 4)} − ${fmt(tp.n_imag, 4)}i, not real air (kept so results match Vertical; set the exit medium to Air for physical results).`
+        : `Imported ${f.name} from Vertical`, false, fake ? 12000 : undefined);
     } else {
       const d = JSON.parse(await f.text());
       if (!d.stack || !d.top || !d.substrate) throw new Error("Not a VCSEL design file");
