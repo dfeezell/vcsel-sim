@@ -5,7 +5,7 @@
 "use strict";
 
 const PY_FILES = ["__init__.py", "_tables.py", "materials.py", "structure.py", "tmm.py", "laser.py", "cavity.py",
-  "vrt.py", "export.py", "templates.py", "api.py"];
+  "vrt.py", "vrt_write.py", "export.py", "templates.py", "api.py"];
 
 const LAYER_TYPES = [["undoped", "undoped"], ["n-type", "n-type"], ["p-type", "p-type"], ["active", "active (gain)"],
   ["dielectric", "dielectric"], ["oxide", "oxide / aperture"], ["metal", "metal"], ["other", "other"]];
@@ -798,6 +798,14 @@ document.addEventListener("click", (e) => {
   else if (act.startsWith("tpl-")) loadTemplate(act.slice(4));
   else if (act === "open") $("#file-input").click();
   else if (act === "save") download(`${slug()}.vcsel.json`, JSON.stringify(stripIds(S.design), null, 1), "application/json");
+  else if (act === "save-vrt") {
+    try {
+      const r = call("export_vrt", designJSON(), S.analysis?.results?.threshold_gain ?? 0);
+      const bin = atob(r.b64); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      download(`${slug()}.vrt`, bytes, "application/octet-stream");
+      toast("Saved for the old Vertical: all layers use fixed n, k at the design wavelength", false, 6000);
+    } catch (err) { toast("Could not write the .vrt: " + err.message, true, 6000); }
+  }
   else if (act.startsWith("csv-")) exportCSV(act.slice(4));
 });
 $("#file-input").addEventListener("change", async (e) => {

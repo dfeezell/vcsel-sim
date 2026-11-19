@@ -131,6 +131,17 @@ def reflectance(design_json, options_json="{}"):
         return fail(e)
 
 
+def export_vrt(design_json, threshold_gain=0.0):
+    """Design -> older-format Vertical .vrt, returned base64-encoded."""
+    try:
+        import base64
+        from .vrt_write import write_vrt
+        s = _structure(design_json)
+        return ok({"b64": base64.b64encode(write_vrt(s, threshold_gain=float(threshold_gain or 0.0))).decode()})
+    except Exception as e:
+        return fail(e)
+
+
 def import_vrt_bytes(data, filename="design.vrt"):
     try:
         s = vrt.read_vrt(bytes(data), name=filename.rsplit(".", 1)[0])
