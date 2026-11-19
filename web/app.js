@@ -109,6 +109,8 @@ function setDesign(d, rerun = true) {
   S.sel = d.stack.length ? ["stack", 0] : ["top"];
   $("#design-lambda").value = d.design_wavelength;
   if (d.temperature == null) d.temperature = 23;
+  // air / vacuum is lossless: drop any stray k left on an Air boundary in material-model mode
+  for (const L of [d.top, d.substrate]) if (L && L.material === "Air" && L.index_mode !== "fixed" && L.n_imag) L.n_imag = 0;
   $("#design-temp").value = d.temperature;
   $("#design-name").textContent = d.name || "Untitled";
   const lam = d.design_wavelength;
@@ -410,7 +412,10 @@ $("#props").addEventListener("change", (e) => {
 $("#props").addEventListener("click", (e) => {
   const b = e.target.closest(".seg button"); if (!b) return;
   const f = b.parentElement.dataset.seg; const it = getAt(S.sel); const v = b.dataset.v;
-  if (it[f] === v) return;
+  if (it[f] === v) {        // re-clicking "Material model" still clears a leftover fixed k
+    if (f === "index_mode" && v === "model" && it.n_imag) { it.n_imag = 0; toast("Cleared the extra k; the material model now sets n and k"); changed(); }
+    return;
+  }
   if (f === "thickness_unit") {
     // keep the physical thickness when switching units
     const ni = nodeValue(S.sel); const lam = S.design.design_wavelength;
