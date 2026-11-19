@@ -33,20 +33,27 @@ function textOn(bg) {
 
 /* Render a design as nested blocks.
  * opts: { info (node_info result), selKey, editable, prefix (id namespace) } */
+const DG_LABEL_W = 92;
 function diagramHTML(design, info, opts = {}) {
   const nodes = info?.nodes || []; let k = 0;
   const ed = !!opts.editable; const selKey = opts.selKey || "";
   const bnd = (L, key, label, n) => `<div class="dg-bnd ${selKey === key ? "sel" : ""}" data-path="${key}" data-drop="${key === "top" ? "after" : "before"}">
       <span class="dg-sw" style="background:${layerColor(L)}"></span><b>${esc(L.name)}</b><span class="dg-meta">${label} · ${esc(matText(L))}${n ? ` · n ${fmt(n.n, 4)}` : ""}</span></div>`;
-  const walk = (items, path) => items.map((it, i) => {
+  // Layers are drawn flush (touching, like Vertical); each group's name and repeat box sit in a
+  // bracketed label column to the left, one column per nesting level.
+  const LW = DG_LABEL_W;
+  const depthOf = (items, d = 0) => items.reduce((m, it) => Math.max(m, it.kind === "group" ? depthOf(it.children, d + 1) : d), d);
+  const maxD = depthOf(design.stack);
+  const walk = (items, path, depth = 0) => items.map((it, i) => {
     const p = [...path, i]; const key = p.join(",");
     if (it.kind === "group") {
-      const role = it.role !== "none" ? `<span class="badge role">${ROLES.find((r) => r[0] === it.role)?.[1] || it.role}</span>` : "";
-      const body = it.children.length ? walk(it.children, p) : `<div class="dg-empty" data-path="${key}" data-drop="into">${ed ? "drop layers here" : "empty"}</div>`;
+      const roleTxt = it.role !== "none" ? (ROLES.find((r) => r[0] === it.role)?.[1] || it.role) : "";
+      const body = it.children.length ? walk(it.children, p, depth + 1) : `<div class="dg-empty" data-path="${key}" data-drop="into">${ed ? "drop layers here" : "empty"}</div>`;
+      const rep = ed ? `<span class="rep">×<input type="number" min="0" step="1" value="${it.repeats}" data-rep="${key}" title="Repetitions"></span>` : `<span class="rep">×${it.repeats}</span>`;
       return `<div class="dg-group ${selKey === key ? "sel" : ""}" data-path="${key}" ${ed ? 'draggable="true"' : ""}>
-        <div class="dg-ghead" data-path="${key}" data-drop="head"><span class="dg-name">${esc(it.name)}</span>
-          ${ed ? `<span class="rep">× <input type="number" min="0" step="1" value="${it.repeats}" data-rep="${key}"></span>` : `<span class="rep">× ${it.repeats}</span>`}${role}</div>
-        <div class="dg-gbody"><div class="dg-rail" title="repeated ${it.repeats}×">×${it.repeats}</div><div class="dg-kids">${body}</div></div></div>`;
+        <div class="dg-glab" data-path="${key}" data-drop="head" style="left:${-(maxD - depth) * LW}px;width:${LW}px" title="${esc(it.name)}: repeated ${it.repeats}×${roleTxt ? ` (${esc(roleTxt)})` : ""}${ed ? ". Drag to move; drop layers here to add them to this group" : ""}">
+          <div class="dg-gtxt"><span class="dg-name">${esc(it.name)}</span>${rep}${roleTxt ? `<span class="dg-role">${esc(roleTxt)}</span>` : ""}</div></div>
+        ${body}</div>`;
     }
     const ni = nodes[k++] || {};
     const bg = layerColor(it); const fg = textOn(bg);
@@ -56,7 +63,7 @@ function diagramHTML(design, info, opts = {}) {
         style="height:${h.toFixed(1)}px;background:${bg};color:${fg}" title="${esc(it.name)} — ${esc(matText(it))}, ${fmt(ni.d, 5)} nm, n = ${fmt(ni.n, 5)}">
       <span class="dg-name">${esc(it.name)}</span>${tags}<span class="dg-meta">${esc(matText(it))} · ${fmt(ni.d, 4)} nm · n ${fmt(ni.n, 4)}</span></div>`;
   }).join("");
-  return `${bnd(design.top, "top", "exit medium", info?.top)}<div class="dg-stack" data-path="stack">${walk(design.stack, ["stack"])}</div>${bnd(design.substrate, "sub", "substrate", info?.substrate)}`;
+  return `<div class="dg-wrap" style="padding-left:${maxD * LW}px">${bnd(design.top, "top", "exit medium", info?.top)}<div class="dg-stack" data-path="stack">${walk(design.stack, ["stack"])}</div>${bnd(design.substrate, "sub", "substrate", info?.substrate)}</div>`;
 }
 
 /* Full wafer to scale, every repeat expanded (thin strip next to the blocks). */
@@ -122,7 +129,7 @@ function dgDrop(src, targetKey, where) {
 function dropWhere(el, ev) {
   const kind = el.dataset.drop; const r = el.getBoundingClientRect(); const f = (ev.clientY - r.top) / r.height;
   if (kind === "after" || kind === "before" || kind === "into") return kind;
-  if (kind === "head") return f < 0.35 ? "before" : "into";
+  if (kind === "head") return f < 0.12 ? "before" : f > 0.88 ? "after" : "into";
   return f < 0.5 ? "before" : "after";
 }
 function clearDropMarks(root) { $$(".drop-before,.drop-after,.drop-into", root).forEach((e) => e.classList.remove("drop-before", "drop-after", "drop-into")); }
