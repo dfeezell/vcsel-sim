@@ -800,7 +800,7 @@ const RES = [
     ["active_thickness", "Active thickness L<sub>a</sub>", "nm", "sum of active layers", "active thickness (nm)"],
     ["enhancement", "Gain enhancement Γ<sub>enh</sub>", "", "⟨|E|²⟩ over active ÷ local standing-wave mean", "gain enhancement"],
     ["confinement", "Confinement Γ (energy-weighted)", "", "∫<sub>a</sub> n²|E|² ÷ ∫<sub>stack</sub> n²|E|²; the course-notes Γ = Γ<sub>enh</sub>L<sub>a</sub>/L is further up"],
-    ["effective_length", "Effective cavity length L (energy-based)", "nm", "Γ<sub>enh</sub> L<sub>a</sub> / Γ(energy-weighted)"],
+    ["effective_length", "Energy length L<sub>E</sub> = Γ<sub>enh</sub>L<sub>a</sub>/Γ", "nm", "the length that makes Γ = Γ<sub>enh</sub>L<sub>a</sub>/L exact with the energy-weighted Γ; the per-length losses below use it. Not the Coldren effective cavity length (Mirrors section)"],
     ["@L_cav_between", "Cavity length (between the DBRs)", "nm", "physical thickness of all layers between the Top DBR and Bottom DBR groups"],
     ["@cavity_optical_waves", "Cavity optical thickness", "λ", "Σ n d / λ<sub>las</sub> over the layers between the DBR groups (1 = one-wavelength cavity)"]]],
   ["Mirrors at λ<sub>las</sub>", [
@@ -810,7 +810,7 @@ const RES = [
     ["@bottom.periods", "Bottom DBR periods", "", "repeats of the Bottom DBR group"],
     ["@R_bottom_passive", "Bottom DBR reflectance (from cavity)", "", "passive mirror, light incident from the cavity layer next to it"],
     ["@bottom.L_eff_phase", "Bottom DBR penetration depth", "nm", "computed from the reflection phase, as above"],
-    ["@phase.L", "Effective cavity length from penetration depths", "nm", "L<sub>cav</sub> + both computed penetration depths (compare the energy-based L above)"]]],
+    ["@phase.L", "Effective cavity length L (Coldren)", "nm", "L<sub>cav</sub> + L<sub>pen,top</sub> + L<sub>pen,bot</sub>, with the computed penetration depths (compare the energy length L<sub>E</sub> above)"]]],
   ["Efficiency", [
     ["internal_efficiency", "Internal efficiency η<sub>i</sub>", "", "input"],
     ["ext_eff", "External differential efficiency", "", "η<sub>i</sub> × RT transmission / RT gain", "external efficiency"],
