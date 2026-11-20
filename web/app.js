@@ -512,24 +512,38 @@ function placeLegend(el) {
   const L = el._fullLayout; if (!L || !L.showlegend) return;
   const lg = el.querySelector(".legend"); if (!lg) return;
   const bb = lg.getBBox ? lg.getBBox() : null; const xa = L.xaxis, ya = L.yaxis; if (!bb || !xa || !ya) return;
-  const fw = (bb.width + 8) / xa._length, fh = (bb.height + 8) / ya._length;
-  const frac = (ax, v) => { const r = ax.range; const t = ax.type === "log" ? Math.log10(Math.max(v, 1e-300)) : v; return (t - r[0]) / (r[1] - r[0]); };
+  // work in pixels; the legend box is padded so a curve running along its edge also counts as covered
+  const W = xa._length, Hh = ya._length, PAD = 10;
+  const px = (ax, v, len) => { const r = ax.range; const t = ax.type === "log" ? Math.log10(Math.max(v, 1e-300)) : v; return (t - r[0]) / (r[1] - r[0]) * len; };
   const corners = [["right", "top", 0.99, 0.98], ["left", "top", 0.01, 0.98], ["right", "bottom", 0.99, 0.02], ["left", "bottom", 0.01, 0.02]];
+  // polylines of every visible trace, in plot pixels (y up)
+  const lines = [];
+  for (const tr of el.data || []) {
+    if (tr.visible === false || tr.visible === "legendonly" || !tr.x || !tr.y) continue;
+    const yax = tr.yaxis === "y2" ? L.yaxis2 : ya; if (!yax) continue;
+    const step = Math.max(1, Math.floor(tr.x.length / 2000)); const pts = [];
+    for (let i = 0; i < tr.x.length; i += step) {
+      const v = tr.y[i]; if (v == null || !Number.isFinite(+v)) { pts.push(null); continue; }
+      pts.push([px(xa, +tr.x[i], W), px(yax, +v, Hh)]);
+    }
+    lines.push(pts);
+  }
   let best = null;
   for (const [xan, yan, x, y] of corners) {
-    const x0 = xan === "right" ? x - fw : x, x1 = x0 + fw, y0 = yan === "top" ? y - fh : y, y1 = y0 + fh;
-    let n = 0;
-    for (const tr of el.data || []) {
-      if (tr.visible === false || !tr.x || !tr.y) continue;
-      const yax = tr.yaxis === "y2" ? L.yaxis2 : ya;
-      const step = Math.max(1, Math.floor(tr.x.length / 1500));
-      for (let i = 0; i < tr.x.length; i += step) {
-        const v = tr.y[i]; if (v == null || !Number.isFinite(v)) continue;
-        const fx = frac(xa, tr.x[i]), fy = frac(yax, v);
-        if (fx >= x0 && fx <= x1 && fy >= y0 && fy <= y1) n++;
-      }
+    const bw = bb.width, bh = bb.height;
+    const x0 = (xan === "right" ? x * W - bw : x * W) - PAD, x1 = x0 + bw + 2 * PAD;
+    const y0 = (yan === "top" ? y * Hh - bh : y * Hh) - PAD, y1 = y0 + bh + 2 * PAD;
+    const inside = (p) => p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1;
+    let n = 0;   // length (px) of curve inside the padded box, plus a little for each point
+    for (const pts of lines) for (let i = 0; i < pts.length; i++) {
+      const p = pts[i]; if (!p) continue;
+      if (inside(p)) n += 3;
+      const q = pts[i + 1]; if (!q) continue;
+      const len = Math.hypot(q[0] - p[0], q[1] - p[1]); const k = Math.min(200, Math.ceil(len / 2));
+      if (k <= 1) { if (inside(p)) n += len; continue; }
+      for (let j = 0; j < k; j++) { const t = (j + 0.5) / k; if (inside([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])])) n += len / k; }
     }
-    if (!best || n < best.n) best = { n, xan, yan, x, y };
+    if (!best || n < best.n - 1e-6) best = { n, xan, yan, x, y };
     if (n === 0) break;
   }
   const cur = L.legend;
