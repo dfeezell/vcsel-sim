@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VCSEL Simulator User Manual</title>
+<style>
+  @page { size: Letter; margin: 0.9in 0.85in 0.85in 0.85in; }
+  :root { --ink: #1d2433; --ink2: #4a5568; --line: #d6dbe3; --accent: #1f5fae; --soft: #f3f6fa; }
+  html { font-family: "Charter", "Georgia", "Times New Roman", serif; font-size: 10.5pt; line-height: 1.45; color: var(--ink); }
+  body { margin: 0; }
+  h1, h2, h3, h4, .cover, th, .caption, .toc, .tag { font-family: "Inter", "Helvetica Neue", Arial, sans-serif; }
+  h1 { font-size: 20pt; color: var(--accent); margin: 22pt 0 6pt; page-break-after: avoid; border-bottom: 2px solid var(--accent); padding-bottom: 4pt; }
+  h2 { font-size: 13.5pt; margin: 18pt 0 4pt; color: var(--ink); page-break-after: avoid; }
+  h3 { font-size: 11pt; margin: 12pt 0 2pt; color: var(--ink2); page-break-after: avoid; }
+  p { margin: 4pt 0 6pt; text-align: justify; hyphens: auto; }
+  ul, ol { margin: 3pt 0 6pt; padding-left: 18pt; }
+  li { margin: 1.5pt 0; }
+  code, .mono { font-family: "JetBrains Mono", "Consolas", monospace; font-size: 9pt; background: var(--soft); padding: 0 2pt; border-radius: 2px; }
+  .eq { display: block; text-align: center; margin: 6pt 0 8pt; font-style: italic; }
+  .eq .n { float: right; font-style: normal; color: var(--ink2); }
+  table { border-collapse: collapse; width: 100%; margin: 6pt 0 10pt; font-size: 9pt; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  th { text-align: left; background: var(--soft); border-bottom: 1.5px solid var(--line); padding: 3pt 5pt; font-size: 8.5pt; }
+  td { border-bottom: 1px solid var(--line); padding: 3pt 5pt; vertical-align: top; }
+  figure { margin: 8pt 0 12pt; page-break-inside: avoid; }
+  figure img { width: 100%; border: 1px solid var(--line); }
+  .caption { font-size: 8.5pt; color: var(--ink2); margin-top: 3pt; }
+  .note { background: #fff8e6; border-left: 3px solid #f0a020; padding: 5pt 8pt; margin: 8pt 0; font-size: 9.5pt; page-break-inside: avoid; }
+  .tip { background: #eef5ff; border-left: 3px solid var(--accent); padding: 5pt 8pt; margin: 8pt 0; font-size: 9.5pt; page-break-inside: avoid; }
+  .cover { height: 9in; display: flex; flex-direction: column; justify-content: center; }
+  .cover .t1 { font-size: 30pt; font-weight: 700; color: var(--accent); }
+  .cover .t2 { font-size: 14pt; color: var(--ink2); margin-top: 6pt; }
+  .cover .t3 { margin-top: 40pt; font-size: 10.5pt; color: var(--ink2); line-height: 1.7; }
+  .cover .draft { display: inline-block; margin-top: 30pt; border: 1.5px solid #d9480f; color: #d9480f; padding: 3pt 10pt; font-weight: 600; letter-spacing: 1px; }
+  .toc { page-break-before: always; page-break-after: always; }
+  .toc h2 { margin-top: 0; }
+  .toc ol { list-style: none; padding-left: 0; }
+  .toc ol ol { padding-left: 16pt; }
+  .toc li { margin: 2pt 0; }
+  .part { page-break-before: always; page-break-after: always; height: 8in; display: flex; flex-direction: column; justify-content: center; font-family: "Inter", Arial, sans-serif; }
+  .part .k { font-size: 12pt; color: var(--ink2); letter-spacing: 2px; text-transform: uppercase; }
+  .part .h { font-size: 26pt; color: var(--accent); font-weight: 700; margin-top: 6pt; }
+  .part p { font-family: "Charter", Georgia, serif; max-width: 5in; color: var(--ink2); }
+  .refs li { margin: 3pt 0; font-size: 9.5pt; }
+  .kbd { font-family: "Inter", Arial, sans-serif; font-size: 8.5pt; border: 1px solid #b8c0cc; border-radius: 3px; padding: 0 3pt; background: #fafbfc; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="t1">VCSEL Simulator</div>
+  <div class="t2">User manual: operation and physics</div>
+  <div class="t3">
+    One-dimensional transfer-matrix design tool for vertical-cavity surface-emitting lasers<br>
+    Phase 1 (1D) &nbsp;·&nbsp; manual revision {{DATE}}<br>
+    Simulator: <span class="mono">https://dfeezell.github.io/vcsel-sim/</span><br>
+    Source: <span class="mono">https://github.com/dfeezell/vcsel-sim</span>
+  </div>
+  <div><span class="draft">DRAFT</span></div>
+</div>
+
+<div class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><b>Part I. Using the simulator</b>
+      <ol>
+        <li>1. Overview and capabilities</li>
+        <li>2. The window</li>
+        <li>3. Building a structure</li>
+        <li>4. Analysis tabs</li>
+        <li>5. Files, templates and export</li>
+        <li>6. Worked example: a 980 nm InGaAs/GaAs VCSEL</li>
+      </ol></li>
+    <li><b>Part II. Physics, methods and limitations</b>
+      <ol>
+        <li>7. Optical model and conventions</li>
+        <li>8. Threshold condition</li>
+        <li>9. Gain and loss budget</li>
+        <li>10. Cavity length, penetration depth and confinement (course-notes model)</li>
+        <li>11. Mirror reflectance and stopband</li>
+        <li>12. Material models</li>
+        <li>13. Absorption from doping</li>
+        <li>14. Validation against Vertical</li>
+        <li>15. Assumptions and limitations</li>
+        <li>16. References</li>
+      </ol></li>
+  </ol>
+  <p class="tip">This is a draft for Phase 1 (one-dimensional analysis). Lateral effects (oxide apertures, diffraction loss, transverse modes) are planned for Phase 2 and will be added to both parts of this manual.</p>
+</div>
+
+<!-- ======================================================================= PART I -->
+<div class="part">
+  <div class="k">Part I</div>
+  <div class="h">Using the simulator</div>
+  <p>How to build a VCSEL layer structure, run the analysis, read the results, and move designs in and out of the tool.</p>
+</div>
+
+<h1>1. Overview and capabilities</h1>
+<p>The VCSEL Simulator computes the optical properties of a planar VCSEL (or any thin-film stack) at normal incidence using the transfer-matrix method. It is a modern replacement for the program <i>Vertical</i> and runs entirely in the web browser: the numerical engine is written in Python (numpy) and is executed in the browser through Pyodide, so nothing is installed and no data leave the computer. The same engine can be imported in Python or Jupyter.</p>
+<p>For a given structure it calculates:</p>
+<ul>
+  <li>the lasing wavelength and the threshold material gain g<sub>th</sub> of the longitudinal mode (exact outgoing-wave threshold condition);</li>
+  <li>the standing-wave field |E(z)|² and refractive-index profile through the structure;</li>
+  <li>the round-trip gain and loss budget, the internal and mirror losses, the gain enhancement factor Γ<sub>enh</sub>, the longitudinal confinement factor Γ, the effective cavity length, the photon lifetime, the external differential and slope efficiencies (top and bottom), and the cavity optical thickness;</li>
+  <li>reflectance, transmission and reflection phase spectra of the top mirror, the bottom mirror and the whole wafer (from the top or through the substrate), with the stopband;</li>
+  <li>stand-alone quarter-wave DBR designs: reflectance at λ<sub>0</sub>, stopband, penetration depth, and the number of pairs needed for a target reflectance;</li>
+  <li>refractive index n and extinction coefficient k of every material in the database versus wavelength, composition and (for AlGaAs) temperature;</li>
+  <li>free-carrier and dopant-related absorption from the doping level, using literature cross-sections (optional, per layer).</li>
+</ul>
+<p>Designs can be saved and reopened, imported from and exported to Vertical <code>.vrt</code> files, and every plot and table can be exported (PNG/SVG figures, CSV data).</p>
+
+<h1>2. The window</h1>
+<figure><img src="img/main.png"><div class="caption">Figure 1. The simulator with the 980 nm template loaded. Left: stack panel (diagram view). Right: analysis tabs (Field &amp; index shown).</div></figure>
+<h2>2.1 Toolbar</h2>
+<table>
+  <tr><th style="width:24%">Control</th><th>Function</th></tr>
+  <tr><td>File ▾</td><td>New empty design, templates, open a design (<code>.vcsel.json</code>) or Vertical <code>.vrt</code> file, save, save for the old Vertical, CSV exports.</td></tr>
+  <tr><td>↶ Undo / ↷ Redo</td><td>Step backward and forward through changes to the design (layers, groups, materials, thicknesses, design wavelength, temperature). Keyboard: <span class="kbd">Ctrl</span>+<span class="kbd">Z</span> and <span class="kbd">Ctrl</span>+<span class="kbd">Y</span> (or <span class="kbd">Ctrl</span>+<span class="kbd">Shift</span>+<span class="kbd">Z</span>) when the cursor is not in a text box. Up to 200 steps.</td></tr>
+  <tr><td>λ<sub>design</sub></td><td>Design wavelength (nm). Layers whose thickness is given in waves are quarter-wave (etc.) at this wavelength, and indices shown in the editor are evaluated here.</td></tr>
+  <tr><td>T</td><td>Structure temperature (°C), used by temperature-dependent materials (currently AlGaAs, Gehrsitz model).</td></tr>
+  <tr><td>Tune cavity</td><td>Scales the thickness of all layers ticked <i>Marked</i> by a common factor so that the cold-cavity resonance falls exactly on λ<sub>design</sub> (Vertical's “Marks / Force Wave”).</td></tr>
+  <tr><td>▶ Analyze</td><td>Runs the full threshold analysis (<span class="kbd">Ctrl</span>+<span class="kbd">Enter</span>). The analysis also re-runs automatically after every edit.</td></tr>
+</table>
+<h2>2.2 Stack panel</h2>
+<p>The left panel shows the structure from the <b>exit medium</b> (top, usually air) down to the <b>substrate</b>. Both are semi-infinite. There are two views:</p>
+<ul>
+  <li><b>☰ List</b>: a tree, as in Vertical, with material, thickness and index at λ<sub>design</sub> for every layer.</li>
+  <li><b>▤ Diagram</b>: blocks whose height follows layer thickness (or equal heights), each group drawn once with its repeat count, and a to-scale strip of the whole wafer at the right. Blocks can be dragged to reorder them or dropped on a group header to move them inside the group. The chips at the top (layer, DBR pairs, QW + barrier, spacer, empty group, oxide) can be dragged into the stack. PNG and SVG download a labelled drawing.</li>
+</ul>
+<p>The toolbar above the stack adds a layer or group below the selection, duplicates, moves up or down, indents into the group above, outdents, and deletes. The footer gives the number of layers (with repeats expanded), the total thickness, λ<sub>las</sub> and g<sub>th</sub>.</p>
+<h2>2.3 Layer editor</h2>
+<p>Clicking a layer opens its editor (Figure 2). <b>▲ ▼</b> or <span class="kbd">Alt</span>+arrow keys step through layers; <b>Dock</b> fixes the editor below the stack instead of a pop-up.</p>
+<figure><img src="img/editor.png"><div class="caption">Figure 2. List view and the layer editor for a cavity spacer.</div></figure>
+
+<h1>3. Building a structure</h1>
+<h2>3.1 Layers</h2>
+<table>
+  <tr><th style="width:20%">Field</th><th>Meaning</th></tr>
+  <tr><td>Name</td><td>Free text shown in the stack and tables.</td></tr>
+  <tr><td>Material, x, y</td><td>Material from the database (Section 12) and its composition. The composition fields are labelled with their meaning, e.g. <i>x (Al)</i> for Al<sub>x</sub>Ga<sub>1−x</sub>As. The band gap at that composition is shown next to the field.</td></tr>
+  <tr><td>Index source</td><td><b>Material model</b> (dispersive, from the database) or <b>Fixed n, k</b> (a constant index, e.g. a measured value). Layers imported from <code>.vrt</code> files are fixed at the values stored in the file.</td></tr>
+  <tr><td>k (added)</td><td>Extra extinction coefficient added to the model value (k &gt; 0 is loss).</td></tr>
+  <tr><td>Thickness</td><td>In <b>nm</b>, or in <b>waves</b> = optical thickness n(λ<sub>design</sub>)·d/λ<sub>design</sub>, so 0.25 is a quarter-wave layer. Changing λ<sub>design</sub> rescales layers given in waves; layers in nm stay fixed. The physical and optical thicknesses are shown below the field.</td></tr>
+  <tr><td>Layer type</td><td>undoped, n-type, p-type, <b>active (gain)</b>, dielectric, oxide/aperture, metal, other. Only <i>active</i> changes the physics: the threshold gain is applied to all active layers.</td></tr>
+  <tr><td>Doping</td><td>cm⁻³. Used by the optional absorption-from-doping model (Section 13) and written to <code>.vrt</code> files.</td></tr>
+  <tr><td>Absorption α</td><td><b>Manual</b>: a fixed α in cm⁻¹ (default; negative values are gain). <b>From doping</b>: α = σ·N with a literature cross-section σ, which can be overridden. Typing a doping into an n- or p-type layer whose material has a model switches the layer to <i>From doping</i> automatically. Active layers always use the manual value.</td></tr>
+  <tr><td>Marked</td><td>Thickness adjusted by <b>Tune cavity</b>.</td></tr>
+  <tr><td>Apertured</td><td>Reserved for the Phase 2 lateral analysis.</td></tr>
+</table>
+<h2>3.2 Groups and roles</h2>
+<p>A <b>group</b> is a block of layers repeated <i>N</i> times (edit the “×” box). Groups can be nested. DBRs and multi-quantum-well active regions are groups, so changing the number of mirror pairs or wells only means editing one number. Each group has a <b>role</b>:</p>
+<ul>
+  <li><b>Top DBR</b> and <b>Bottom DBR</b>: identify the mirrors. They are needed for the mirror reflectance spectra (“from cavity”), the cavity length and optical thickness, and the course-notes penetration-depth model. Everything between the two mirror groups is the cavity.</li>
+  <li><b>Active region</b>: a label for the MQW block (the gain itself comes from the layer type <i>active</i>).</li>
+</ul>
+<div class="tip">Minimum for a threshold calculation: at least one layer with <i>Layer type = active</i>. For the full set of results: one group with role Top DBR and one with role Bottom DBR.</div>
+<h2>3.3 Exit medium and substrate</h2>
+<p>The first and last rows of the stack. Each is a semi-infinite medium with a material or fixed index. Use <i>Air</i> (n = 1) for a real air interface. Older Vertical files sometimes store their top medium with a large imaginary index; on import the program keeps the stored value and warns about it.</p>
+<h2>3.4 Inserting a DBR from the DBR design tab</h2>
+<p>A mirror designed on the DBR design tab can be added with <b>Insert into stack</b>. As <i>Bottom DBR</i> or <i>Top DBR</i> it replaces the stack's existing bottom or top mirror group (or is placed directly above the substrate / below the exit medium if there is none). As a <i>plain group</i> it goes below the selected item. Undo restores the previous stack.</p>
+
+<h1>4. Analysis tabs</h1>
+<h2>4.1 Field &amp; index</h2>
+<p>Plots |E(z)|² at the lasing wavelength and the refractive-index profile. Options: show |E|², n or both; normalize |E|² to the substrate, the exit medium or the peak; measure depth from the top surface or the substrate interface; nm or µm; shade regions (mirrors, cavity, active layers). The <i>Sampling</i> boxes only set how densely the curve is drawn. All integrals in the results are analytic and do not depend on the sampling. While the layer editor is open, the layer or group being edited is marked by a faint blue band on the plot (every repeat of it, for a layer inside a group), so its position in the field and index profile is easy to see. Summary cards above the plot give λ<sub>las</sub>, g<sub>th</sub>, Γg<sub>th</sub>, Γ, Γ<sub>enh</sub> and |E|² at the active layers.</p>
+<h2>4.2 Reflectance</h2>
+<figure><img src="img/reflectance.png"><div class="caption">Figure 3. Reflectance tab: top and bottom mirror seen from the cavity, with the stopband table.</div></figure>
+<p>Choose the wavelength range, number of points and the spectra to compute:</p>
+<ul>
+  <li><b>Top DBR (from cavity)</b>: everything above the cavity, seen from the cavity layer next to the mirror (taken as lossless).</li>
+  <li><b>Bottom DBR (from cavity)</b>: everything below the cavity, ending in the substrate.</li>
+  <li><b>Whole wafer, from top / from substrate</b>: what a reflectometer measures. Where the incident medium itself absorbs strongly (a GaAs substrate below about 870 nm), reflectance seen from inside it is not defined and that part of the spectrum is left blank.</li>
+</ul>
+<p>Plot R, the phase of r, both, 1 − R on a log scale, or T. The spectra are for the passive, as-grown structure: the active layers carry no gain, so there is no lasing spike. The table gives, for each spectrum, R, phase and T at λ<sub>design</sub>, R<sub>max</sub> and its wavelength, and the <b>stopband</b>: the continuous band with R ≥ 99% (the threshold can be changed) around λ<sub>design</sub>, with its width and center. For whole-wafer spectra the narrow cavity dip is bridged.</p>
+<div class="note">The top of a DBR stopband is very flat, so λ at R<sub>max</sub> can be several nm from λ<sub>design</sub> while R differs by only ~10⁻⁴. This is physical when the two mirror materials absorb differently (Section 11). Use the stopband center to judge where a mirror is centered.</div>
+<h2>4.3 DBR design</h2>
+<figure><img src="img/dbr.png"><div class="caption">Figure 4. DBR design tab: 20-pair Al<sub>0.9</sub>GaAs/GaAs mirror seen from GaAs.</div></figure>
+<p>Designs a quarter-wave mirror on its own. Set λ<sub>0</sub>, the number of pairs, the incident medium, the first layer (next to the incident medium), the second layer and the exit medium, each with its composition (“x =”). <b>⇅ Swap layers</b> exchanges the two layers. For a mirror seen from a GaAs cavity, use GaAs as the incident medium and put the low-index layer first.</p>
+<p>The cards give R at λ<sub>0</sub> (transfer matrix and the analytic formula), 1 − R, the stopband (R ≥ 99%, next to the infinite-stack width), the indices and quarter-wave thicknesses, the period and total thickness, and the penetration depth (Coldren &amp; Corzine A7.25 and the Ch. 3 approximations). Below are the full spectrum, a table of pairs needed for target reflectances, a drawing of the mirror, and a plot of R (or 1 − R, log) versus the number of pairs. The mirror can be exported as a spectrum CSV, a layer CSV, saved as a design, or inserted into the stack.</p>
+<h2>4.4 Results</h2>
+<figure><img src="img/results.png"><div class="caption">Figure 5. Results tab.</div></figure>
+<p>The full results table, grouped as: operating point (λ<sub>las</sub>, g<sub>th</sub>, Γg<sub>th</sub>, photon energy, photon lifetime); round-trip budget; losses per unit length (α<sub>i</sub>, α<sub>m</sub> and their top/bottom parts, effective R); confinement (active thickness, Γ<sub>enh</sub>, Γ, effective length, cavity length and cavity optical thickness); efficiency; standing-wave field values; internal loss by region; a collapsed <i>hand-calculation cross-check</i> section with the course-notes penetration-depth model; and the transfer matrix at λ<sub>las</sub>. Definitions are in Part II.</p>
+<p>Options: <b>Round trip → per length</b> chooses the exact (default) or linear (as Vertical) conversion from round-trip fractions to per-length losses (Section 9.3). <b>Show Vertical-convention column</b> adds Vertical's numerical rules for cross-checking old results (Section 14). <b>Internal efficiency η<sub>i</sub></b> enters the efficiency results.</p>
+<h2>4.5 Layer table</h2>
+<p>Every layer with repeats expanded, top to bottom: material, composition, type, thickness, depth, n, k, α, optical thickness n·d/λ, band gap and doping, at λ<sub>design</sub>. Exportable as CSV.</p>
+<h2>4.6 Materials</h2>
+<figure><img src="img/materials.png"><div class="caption">Figure 6. Materials tab: Al<sub>x</sub>Ga<sub>1−x</sub>As index and extinction coefficient, with n, k at a typed wavelength.</div></figure>
+<p>Plots n and k of any material versus wavelength for a chosen composition, marks the band gap, and gives n, k and α = 4πk/λ at a wavelength typed in the <i>n, k at λ</i> box. The table lists the model and reference for every material.</p>
+<h2>4.7 Help &amp; theory</h2>
+<p>A short summary of operation and method inside the program. This manual is the full reference.</p>
+
+<h1>5. Files, templates and export</h1>
+<table>
+  <tr><th style="width:30%">Item</th><th>Details</th></tr>
+  <tr><td>Templates</td><td>980 nm InGaAs/GaAs VCSEL; 850 nm GaAs/AlGaAs VCSEL; the ECE 577 final project (imported from Vertical); a Ta<sub>2</sub>O<sub>5</sub>/SiO<sub>2</sub> dielectric DBR.</td></tr>
+  <tr><td>Save / Open design</td><td><code>.vcsel.json</code>: the complete design (layers, groups, options). The design is also kept in the browser between visits.</td></tr>
+  <tr><td>Open Vertical <code>.vrt</code></td><td>Reads old and new Vertical formats: layer tree, repetitions, indices, thicknesses, absorption, doping, layer types. Objects in Vertical's “Extra” area are ignored. Indices are fixed at the stored values; switch a layer to <i>Material model</i> to use the database.</td></tr>
+  <tr><td>Save for old Vertical</td><td>Writes a <code>.vrt</code> readable by the original program, with every layer at fixed n, k (and the effective α) at λ<sub>design</sub>.</td></tr>
+  <tr><td>CSV export</td><td>Layer structure, index profile, |E|² field, reflectance spectra, all results, inputs (JSON).</td></tr>
+  <tr><td>Figures</td><td>PNG (4× resolution) or SVG from the bar above each plot; PNG/SVG drawings of the stack.</td></tr>
+</table>
+<h2>5.1 Using the engine from Python</h2>
+<p>The <code>vcsel_sim</code> package needs only numpy:</p>
+<p class="mono" style="display:block;white-space:pre;padding:5pt">from vcsel_sim.vrt import read_vrt
+from vcsel_sim.laser import analyze, reflectance_spectrum
+s = read_vrt(open("design.vrt", "rb").read())
+a = analyze(s); print(a.threshold_gain, a.wavelength)</p>
+
+<h1>6. Worked example: a 980 nm InGaAs/GaAs VCSEL</h1>
+<ol>
+  <li><b>File ▸ 980 nm InGaAs/GaAs VCSEL.</b> The template has a 22-pair p-type Al<sub>0.9</sub>Ga<sub>0.1</sub>As/GaAs top DBR, a one-wavelength Al<sub>0.3</sub>Ga<sub>0.7</sub>As cavity with three 6 nm In<sub>0.2</sub>Ga<sub>0.8</sub>As wells, a 32-pair n-type bottom DBR, a GaAs substrate and air on top.</li>
+  <li>The analysis runs at once. The footer shows λ<sub>las</sub> ≈ 980.0 nm and g<sub>th</sub> ≈ 444 cm⁻¹. On <b>Field &amp; index</b>, check that the wells sit at the antinode of |E|² (Γ<sub>enh</sub> close to 2).</li>
+  <li><b>Results</b>: the cavity optical thickness is about 0.99 λ (one-wavelength cavity); the round-trip budget shows how much of the gain goes to absorption and how much leaves through the top and the bottom.</li>
+  <li><b>Reflectance</b>: tick both mirrors. The R ≥ 99% stopbands are centered near 980 nm.</li>
+  <li><b>Explore</b>: change the top DBR repeats from 22 to 18 and watch g<sub>th</sub> and the top slope efficiency rise; press Undo to go back. Set the p-DBR layers to <i>From doping</i> to replace the fixed α with doping-dependent values.</li>
+  <li><b>DBR design</b>: find how many Al<sub>0.9</sub>GaAs/GaAs pairs are needed for R = 99.9% from a GaAs cavity, then insert the mirror as the bottom DBR.</li>
+</ol>
+
+<!-- ======================================================================= PART II -->
+<div class="part">
+  <div class="k">Part II</div>
+  <div class="h">Physics, methods and limitations</div>
+  <p>What the simulator computes, the definitions it uses, the material data behind it, and where the model stops being valid.</p>
+</div>
+
+<h1>7. Optical model and conventions</h1>
+<p>The structure is a stack of homogeneous, isotropic, laterally infinite layers between two semi-infinite media. Light propagates along z at normal incidence. In layer j the field is</p>
+<span class="eq">E(z) = A<sub>j</sub> e<sup>ik<sub>j</sub>z</sup> + B<sub>j</sub> e<sup>−ik<sub>j</sub>z</sup>,&nbsp;&nbsp;&nbsp; k<sub>j</sub> = 2π ñ<sub>j</sub> / λ,&nbsp;&nbsp;&nbsp; ñ<sub>j</sub> = n<sub>j</sub> + iκ<sub>j</sub></span>
+<p>with time dependence e<sup>−iωt</sup>, so κ &gt; 0 is loss. An absorption coefficient α (cm⁻¹) enters as κ = αλ/4π; gain is α &lt; 0. E and H = (1/iωμ<sub>0</sub>) dE/dz are continuous at every interface, which gives 2×2 characteristic matrices per layer. Integrals of |E|² over a layer are done in closed form, so no quantity depends on a sampling grid. The reported transfer matrix is the characteristic [E, H] matrix from the substrate to the top.</p>
+
+<h1>8. Threshold condition</h1>
+<p>The same material gain g is applied to every active layer (α = −g). The program finds the real wavelength λ and gain g at which the structure supports a field with <i>only outgoing waves</i> in the exit medium and in the substrate, i.e. a pole of the transmission (Vertical's threshold condition). The search starts from the complex-wavelength resonance (quasi-normal mode) of the passive cavity and then uses a two-dimensional Newton iteration on (λ, g). The result is exact for the 1D structure; no small-loss or mirror-penetration approximation is involved.</p>
+
+<h1>9. Gain and loss budget</h1>
+<h2>9.1 Round-trip fractions</h2>
+<p>At threshold, the power generated in the active layers equals the power absorbed in the passive layers plus the power leaving through the top and bottom. The local absorbed power density is p(z) = α n |E(z)|² and the power flux of a wave is n|A|². All terms are divided by the one-way power flux in the active layers, P<sub>ref</sub> = n<sub>a</sub>(|A|² + |B|²)/2, which gives the round-trip fractions</p>
+<span class="eq">RT gain = 2 g<sub>th</sub> L<sub>a</sub> Γ<sub>enh</sub> = RT internal loss + RT transmission<sub>top</sub> + RT transmission<sub>bottom</sub></span>
+<h2>9.2 Enhancement and confinement</h2>
+<p>The gain enhancement factor Γ<sub>enh</sub> = ⟨|E|²⟩<sub>active</sub> / (|A|² + |B|²) is the overlap of the standing wave with the wells relative to the local mean; it is 2 for a thin well at an antinode and 0 at a node. The longitudinal confinement factor is energy-weighted:</p>
+<span class="eq">Γ = ∫<sub>active</sub> n²|E|² dz / ∫<sub>stack</sub> n²|E|² dz</span>
+<p>and defines the effective cavity length L = Γ<sub>enh</sub> L<sub>a</sub> / Γ. The cavity length reported in the main table is the physical thickness of all layers between the Top DBR and Bottom DBR groups, and the cavity optical thickness is Σ n<sub>i</sub>d<sub>i</sub>/λ<sub>las</sub> over the same layers (1.0 for a one-wavelength cavity).</p>
+<h2>9.3 Losses per length</h2>
+<p>The round-trip fractions are converted to losses per unit length with L. Two conventions are available:</p>
+<span class="eq">exact (default): α<sub>i</sub> = −ln(1 − RT loss)/2L,&nbsp;&nbsp; α<sub>m</sub> = (1/2L) ln[1/((1 − T<sub>up</sub>)(1 − T<sub>down</sub>))],&nbsp;&nbsp; R<sub>up/down</sub> = 1 − T<sub>up/down</sub></span>
+<span class="eq">linear (as Vertical and the course notes): α<sub>i</sub> = RT loss/2L,&nbsp;&nbsp; α<sub>m</sub> = RT transmission/2L,&nbsp;&nbsp; R<sub>up/down</sub> = exp(−T<sub>up/down</sub>)</span>
+<p>where T<sub>up/down</sub> are the round-trip transmissions. In the linear form Γg<sub>th</sub> = α<sub>i</sub> + α<sub>m</sub> holds exactly; the two forms differ by terms of order RT/2, typically 0.1–0.5% for a VCSEL. The threshold gain itself is the same in both.</p>
+<h2>9.4 Efficiency and photon lifetime</h2>
+<p>The external differential efficiency is η<sub>d</sub> = η<sub>i</sub> × RT transmission / RT gain, split into top and bottom by their transmissions; the slope efficiency is η<sub>d</sub> hν/q (W/A). The photon lifetime is the stored energy, (ε<sub>0</sub>/2) ∫ n n<sub>g</sub> |E|² dz with the group index n<sub>g</sub> of each layer, divided by the power lost to absorption and output.</p>
+
+<h1>10. Cavity length, penetration depth and confinement (course-notes model)</h1>
+<p>The collapsed <i>hand-calculation cross-check</i> section on the Results tab reproduces the textbook model used in the ECE 577 notes and Coldren &amp; Corzine Appendix 7, so that hand calculations can be checked. The mirrors are replaced by hard walls at their penetration depths. For a quarter-wave stack of m periods with indices n<sub>1</sub> &lt; n<sub>2</sub> and period Λ:</p>
+<span class="eq">r = (n<sub>2</sub> − n<sub>1</sub>)/(n<sub>2</sub> + n<sub>1</sub>),&nbsp;&nbsp; m<sub>eff</sub> = tanh[m ln(n<sub>2</sub>/n<sub>1</sub>)] / tanh[ln(n<sub>2</sub>/n<sub>1</sub>)],&nbsp;&nbsp; L<sub>eff</sub> = ½ m<sub>eff</sub> Λ [1/(1 + r²) − 1/(2m<sub>eff</sub>)]<span class="n">(A7.25)</span></span>
+<p>measured from the first low-index layer (a high-index mirror layer touching the cavity is counted in the cavity). Then</p>
+<span class="eq">L = L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>,&nbsp;&nbsp; Γ = Γ<sub>enh</sub> L<sub>a</sub>/L,&nbsp;&nbsp; χ = L n<sub>eff</sub>/λ<sub>0</sub></span>
+<p>from which the modal gain, ⟨α<sub>i</sub>⟩, α<sub>m</sub>, R<sub>up</sub> and R<sub>down</sub> follow. A7.25 measures the delay at the mirror's average index n̄ = λ/2Λ; measured in the cavity medium it corresponds to a length shorter by n̄/n<sub>cav</sub> (about 9% for AlAs/GaAs next to GaAs). For comparison the section also gives depths from the computed reflection phase, ½|dφ/dβ| with β = 2πn<sub>cav</sub>/λ, and the Ch. 3 approximations tanh(2mr)/2κ, Λ/4r and λ/4Δn.</p>
+<div class="note">This Γ is not the same quantity as the energy-weighted Γ of Section 9.2; the two can differ by 10–20%. Use the course-notes values to check hand calculations and the main table for design.</div>
+
+<h1>11. Mirror reflectance and stopband</h1>
+<p>Reflectance spectra are computed for the passive structure. “From cavity” spectra use the cavity layer next to the mirror as a lossless incident medium, with the phase referenced to the mirror interface. Whole-wafer spectra use the exit medium or the substrate as the incident medium; where that medium absorbs strongly (|Im ñ| ≥ 0.01|ñ|) the reflectance is undefined and left blank, and weak loss in the incident medium is ignored.</p>
+<p>The <b>stopband</b> is the continuous band around λ<sub>design</sub> (or around the peak if R(λ<sub>design</sub>) is below the threshold) where R ≥ 99%, the usual VCSEL convention (top output mirrors need R ≈ 99.0–99.5%, bottom mirrors above 99.9%). Edges are interpolated between grid points. It is zero until the mirror reaches the threshold and widens with more pairs toward the infinite-stack width</p>
+<span class="eq">Δλ<sub>∞</sub> = (4λ<sub>0</sub>/π) arcsin[(n<sub>2</sub> − n<sub>1</sub>)/(n<sub>2</sub> + n<sub>1</sub>)]</span>
+<p>The half-of-peak (−3 dB) width, used earlier, behaves the opposite way: it shrinks with more pairs because a weak mirror has a broad, low peak. The analytic reflectance at λ<sub>0</sub> on the DBR tab is R = [(n<sub>0</sub> − Y)/(n<sub>0</sub> + Y)]², Y = (n<sub>1</sub>/n<sub>2</sub>)<sup>2m</sup> n<sub>exit</sub>.</p>
+<p><b>Off-center R<sub>max</sub>.</b> Inside the stopband the standing wave sits mainly in the low-index layers on the short-wavelength side and in the high-index layers on the long-wavelength side. If one of the two materials absorbs more (for example through doping), the absorption, and so 1 − R, is lowest on the side where the field avoids that material, and R<sub>max</sub> moves several nm off λ<sub>0</sub>. Because the stopband top is flat, R changes by only ~10⁻⁴. The laser locks to the cavity resonance, not to R<sub>max</sub>.</p>
+
+<h1>12. Material models</h1>
+<p>Indices are computed from published dispersion models or tabulated data at the layer's composition, λ and (where supported) temperature. Any layer can instead use a fixed n, k.</p>
+{{MATERIALS_TABLE}}
+<h2>12.1 Notes and limitations</h2>
+<ul>
+  <li><b>AlGaAs (Afromowitz, default, as Vertical).</b> The modified single-oscillator model has a logarithmic term that becomes complex above the gap, giving an approximate band-to-band absorption. It produces a sharp cusp in n exactly at the direct gap and a step in k from zero; real material has a rounded edge. Features within a few nm of a GaAs or AlGaAs band edge (e.g. near 870 nm for GaAs) are therefore exaggerated. Below the gap, where VCSEL mirrors and cavities operate, the cusp has no effect.</li>
+  <li><b>AlGaAs (Gehrsitz).</b> Accurate to about 10⁻³ below the direct gap, temperature dependent (dn/dT ≈ 2.6–3.5×10⁻⁴ K⁻¹ for GaAs near 1 µm). Not defined at and above the gap, so absorbing GaAs contact or substrate layers should stay on the Afromowitz model. Layers given in waves are converted to nm at 23 °C so they stay physically fixed when T changes; thermal expansion (~6×10⁻⁶ K⁻¹) is not included.</li>
+  <li><b>InGaAs (Takagi)</b> is real-index only (no absorption), intended for strained quantum wells.</li>
+  <li><b>Nitrides</b> use the Adachi (1982) model with fitted parameters, for light polarized in the c-plane (ordinary index), appropriate for c-plane VCSELs.</li>
+  <li><b>AlOx</b> uses a typical fixed value (n ≈ 1.60) for wet-oxidised Al<sub>0.98</sub>GaAs.</li>
+</ul>
+
+<h1>13. Absorption from doping</h1>
+<p>For n- and p-type layers, <i>Absorption α → From doping</i> replaces the typed α with α = σ·N, where N is the layer's doping and σ the cross-section of electrons (n-type) or holes (p-type) for the material family at the design wavelength. σ can be overridden per layer. Manual α remains the default, and active layers always use the manual value.</p>
+<table>
+  <tr><th style="width:17%">Family</th><th style="width:8%">Carrier</th><th>Cross-section and source</th></tr>
+  <tr><td>AlGaAs, InGaAs</td><td>n</td><td>3×10⁻¹⁸ cm² (Casey 1978, eq. 9; GaAs near the gap, also applied to AlGaAs).</td></tr>
+  <tr><td></td><td>p</td><td>7×10⁻¹⁸ cm² (Casey 1978). Other published pairs are 5/11×10⁻¹⁸ (see Debernardi et al. 2019).</td></tr>
+  <tr><td>InP, InGaAsP, InAlGaAs</td><td>n</td><td>Walukiewicz et al. (1980), Table III (n-InP, 300 K, 10 µm, uncompensated): optical-phonon, ionized-impurity and acoustic-phonon parts scaled to λ as λ<sup>2.5</sup>, λ<sup>3.5</sup>, λ<sup>1.5</sup> (their eq. 2). σ depends on N: ≈0.7×10⁻¹⁸ cm² at 1.55 µm and 10¹⁸ cm⁻³.</td></tr>
+  <tr><td></td><td>p</td><td>Intervalence-band absorption: 14×10⁻¹⁸ at 1.3 µm, 20×10⁻¹⁸ at 1.5 µm (Casey &amp; Carter 1984), 25×10⁻¹⁸ at 1.6 µm (Henry et al. 1983, same in InP, InGaAs and GaAs), linear in between, constant outside.</td></tr>
+  <tr><td>AlGaInP</td><td>n</td><td>Estimate: linear in x/0.51 between the GaAs value 3×10⁻¹⁸(λ/870 nm)² (x = 0) and n-GaP (x = 0.51, AlInP) from Spitzer et al. (1959), ≈40 cm⁻¹ per 10¹⁸ at 1.2 µm scaling as λ<sup>1.56</sup>, extrapolated below 1.2 µm. Indirect (X-valley) electrons absorb more than in GaAs.</td></tr>
+  <tr><td></td><td>p</td><td>Estimate: 7×10⁻¹⁸(λ/870 nm)² (GaAs value).</td></tr>
+  <tr><td>GaN, AlGaN, InGaN, AlN</td><td>n</td><td>Phonon-assisted cross-section of Kioupakis, Rinke &amp; Van de Walle (2010), Table I fit, 380–680 nm, E ⊥ c; ≈0.6×10⁻¹⁸ cm² at 450 nm, matching Pimputkar et al. (2015).</td></tr>
+  <tr><td></td><td>p (Mg)</td><td>Most of the loss is absorption by holes bound to activated Mg acceptors, so N is the <b>Mg concentration</b>. Default: ≈1×10⁻¹⁷ cm² per Mg, measured (Sizov, Bhat &amp; Zah 2013). Option: first-principles free + bound holes (Kioupakis 2010, ≈0.9×10⁻¹⁸ at 450 nm).</td></tr>
+</table>
+<div class="note">Limitations: cross-sections are room-temperature values; band-tail (near-edge) absorption of heavily doped layers is not included (in GaN this matters below about 420 nm); the AlGaInP values and the extrapolation of the n-InP data from 10 µm to the near infrared are estimates.</div>
+
+<h1>14. Validation against Vertical</h1>
+<p>For the ECE 577 final-project structure imported directly from its <code>.vrt</code> file, the simulator gives the same threshold gain and lasing wavelength as Vertical (2111.42 cm⁻¹ at 980.000 nm, with the file's stored top medium) and the transfer matrix agrees to 5–6 digits. The 980 nm template written with <i>Save for old Vertical</i> and run in Vertical gives g<sub>th</sub> = 444.143 cm⁻¹, identical to this program. GaN structures (405 nm, 369 nm and a tunnel-junction InGaN design) agree to 0.2–0.5% in g<sub>th</sub>.</p>
+<p>Vertical evaluates some quantities with simple numerical rules, which the <i>Vertical convention</i> column reproduces (to about 0.1%):</p>
+<ul>
+  <li>it samples |E|² every 0.1 nm in active layers and sums the samples including both end points, which can overcount Γ<sub>enh</sub> (values above 2 occur) and lowers its g<sub>th</sub> slightly;</li>
+  <li>it measures Γ<sub>enh</sub> against half of the global peak of |E|² rather than the local standing-wave mean;</li>
+  <li>it splits the transmission between top and bottom in proportion to |E|² at the boundaries, which ignores the different indices of the exit medium and substrate.</li>
+</ul>
+<p>The main <i>Value</i> column is the exact energy balance and should be used for new designs.</p>
+
+<h1>15. Assumptions and limitations</h1>
+<ul>
+  <li><b>One-dimensional, normal incidence, plane waves.</b> No lateral confinement, diffraction, scattering or transverse modes (planned for Phase 2). Layers are flat, homogeneous and isotropic (nitrides use the ordinary index).</li>
+  <li><b>Cold-cavity optics with a uniform gain.</b> The same material gain is applied to all active layers; there is no gain spectrum, carrier transport, spatial hole burning, or self-heating. Threshold <i>current</i> is not computed (it needs a gain–current model; user-defined gain curves are a planned option).</li>
+  <li><b>Absorption</b> comes from the material models, the manual α of each layer, or the doping model. Near-edge band-tail absorption and temperature dependence of absorption are not included.</li>
+  <li><b>Temperature</b> affects only the Gehrsitz AlGaAs index. Thermal expansion and the temperature dependence of other materials are not modelled.</li>
+  <li><b>Band-edge regions.</b> The Afromowitz AlGaAs model exaggerates features right at the band gap (Section 12.1).</li>
+  <li><b>Interfaces</b> are abrupt; graded layers must be approximated by thin steps.</li>
+  <li><b>Metals and very thin layers</b> use bulk optical constants.</li>
+</ul>
+
+<h1>16. References</h1>
+<ol class="refs">
+  <li>L. A. Coldren, S. W. Corzine and M. L. Mašanović, <i>Diode Lasers and Photonic Integrated Circuits</i>, 2nd ed. (Wiley, 2012), Ch. 3 and App. 7.</li>
+  <li>ECE 577 course notes, “Vertical Gain and Loss Definitions.”</li>
+  <li>H. C. Casey, Jr., J. Appl. Phys. 49, 3684 (1978).</li>
+  <li>H. C. Casey, Jr. and P. L. Carter, Appl. Phys. Lett. 44, 82 (1984).</li>
+  <li>C. H. Henry, R. A. Logan, F. R. Merritt and J. P. Luongo, IEEE J. Quantum Electron. QE-19, 947 (1983).</li>
+  <li>J. Taylor and V. Tolstikhin, J. Appl. Phys. 87, 1054 (2000).</li>
+  <li>W. Walukiewicz, J. Lagowski, L. Jastrzebski, P. Rava, M. Lichtensteiger, C. H. Gatos and H. C. Gatos, J. Appl. Phys. 51, 2659 (1980).</li>
+  <li>W. G. Spitzer, M. Gershenzon, C. J. Frosch and D. F. Gibbs, J. Phys. Chem. Solids 11, 339 (1959).</li>
+  <li>E. Kioupakis, P. Rinke and C. G. Van de Walle, Appl. Phys. Express 3, 082101 (2010).</li>
+  <li>D. Sizov, R. Bhat and C. Zah, J. Appl. Phys. 113, 203108 (2013).</li>
+  <li>S. Pimputkar et al., J. Cryst. Growth 432, 49 (2015).</li>
+  <li>P. Debernardi et al., IEEE J. Sel. Top. Quantum Electron. 25, 1700914 (2019).</li>
+  <li>Material dispersion models: see the table in Section 12.</li>
+</ol>
+</body>
+</html>

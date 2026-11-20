@@ -1,5 +1,6 @@
 /* Help & theory text for the "Help & theory" tab. */
 window.ABOUT_HTML = `
+<p class="note">This tab is a short summary. The full <a href="docs/VCSEL_Simulator_Manual.pdf" target="_blank" rel="noopener">user manual (PDF)</a> covers operation, the physics, assumptions and limitations in detail.</p>
 <h2>Getting started</h2>
 <p>The design is a list of layers from the <b>exit medium</b> (top, usually air) down to the <b>substrate</b>; both are semi-infinite.
 Use <b>＋ Layer</b> / <b>＋ Group</b> to build the stack. A <b>group</b> is a block of layers repeated <i>N</i> times. DBRs and
@@ -99,6 +100,7 @@ Objects left in Vertical's “Extra” area are ignored. Indices are kept fixed 
 
 <h2>Building the stack visually</h2>
 <p>The stack panel has two views. <b>☰ List</b> is the tree, as in Vertical. <b>▤ Diagram</b> draws the stack as blocks, with block height following layer thickness (or equal heights), each group drawn once with its repeat count, and a to-scale strip of the whole wafer on the right (every repeat drawn; the blue bar marks the selection). Click a block or the strip to select and edit it below. Drag blocks to reorder them, drag a layer onto a group header to put it inside the group, and drag the chips at the top (layer, DBR pairs, QW + barrier, spacer, empty group, oxide) into the stack to add new pieces. ⇔ widens the panel, and <b>Hide</b> on the properties panel gives the stack the full height. <b>Heights: fit panel</b> (default) shrinks the blocks so the whole stack is visible without scrolling. <b>PNG</b> / <b>SVG</b> download a labelled drawing of the stack (each group drawn once with ×N). The toolbar buttons (duplicate, move, delete) work in both views.</p>
+<p>While the layer editor is open, the layer or group being edited is marked by a faint blue band on the Field &amp; index plot.</p>
 <p>The DBR design tab draws the mirror it designs and can export it as a layer CSV or save it as a design file.</p>
 
 <h2>Temperature</h2>

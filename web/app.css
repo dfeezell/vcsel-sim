@@ -290,3 +290,4 @@ body.props-float .form { gap: 6px 10px; }
 .course-toggle td { cursor: pointer; user-select: none; }
 .course-toggle:hover td { background: #eef3fb; }
 #btn-undo:disabled, #btn-redo:disabled { opacity: 0.45; cursor: default; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; color: inherit; }
