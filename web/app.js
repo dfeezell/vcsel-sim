@@ -481,6 +481,18 @@ $("#design-temp").addEventListener("change", (e) => { const v = parseFloat(e.tar
 $("#design-lambda").addEventListener("change", (e) => { S.design.design_wavelength = parseFloat(e.target.value) || S.design.design_wavelength; changed(); });
 
 /* ------------------------------------------------------------------ field plot */
+// remember each plot's axis ranges after every full redraw, for the Reset button
+const _plotlyReact = Plotly.react;
+Plotly.react = function (el, ...args) {
+  return Promise.resolve(_plotlyReact.call(Plotly, el, ...args)).then((gd) => {
+    const g = gd || el, L = g._fullLayout || {}; const home = {};
+    for (const ax of Object.keys(L).filter((a) => /^[xy]axis\d*$/.test(a))) if (L[ax] && Array.isArray(L[ax].range)) home[ax] = L[ax].range.slice();
+    g._home = home; return g;
+  });
+};
+// run relayouts on one plot one after another
+function plotQueue(el, fn) { el._q = (el._q || Promise.resolve()).then(fn).catch((e) => console.warn(e)); return el._q; }
+window.plotQueue = plotQueue;
 const PLOT_FONT = { family: "Inter, Arial, sans-serif", size: 13, color: "#18202b" };
 const PLOT_CONFIG = { responsive: true, displaylogo: false, toImageButtonOptions: { format: "png", scale: 4, filename: "vcsel_plot" },
   modeBarButtonsToRemove: ["lasso2d", "select2d"], displayModeBar: false };   // labelled toolbar above each plot instead (stackviz.js)
@@ -527,7 +539,7 @@ function plotField() {
   };
   renderKpis();                       // before plotting, so the plot gets its final height
   S.fieldShapes = shapes;
-  layout.shapes = shapes.concat(selShapes(P));
+  layout.shapes = shapes.concat(selShapes(P)); el._selKey = JSON.stringify(layout.shapes);
   Plotly.react(el, traces, layout, PLOT_CONFIG);
 }
 // faint blue band on the Field plot over the item open in the layer editor (every repeat of it)
@@ -537,8 +549,8 @@ function selShapes(P) {
   const sel = S.sel, key = sel.join("/"), out = [];
   const band = (a, b) => out.push({ type: "rect", xref: "x", yref: "paper", x0: Math.min(a, b), x1: Math.max(a, b), y0: 0, y1: 1,
     fillcolor: "rgba(28,126,214,0.20)", line: { width: 1, color: "rgba(28,126,214,0.55)" }, layer: "below" });
-  if (sel[0] === "top") { band(xmap(-1e5, P), xmap(0, P)); return out; }
-  if (sel[0] === "sub") { band(xmap(P.total_thickness, P), xmap(P.total_thickness + 1e5, P)); return out; }
+  if (sel[0] === "top") { band(xmap(P.z[0], P), xmap(0, P)); return out; }
+  if (sel[0] === "sub") { band(xmap(P.total_thickness, P), xmap(P.z[P.z.length - 1], P)); return out; }
   // flatten the tree in the engine's order, remembering each layer's tree path
   const paths = [];
   const walk = (items, pre) => items.forEach((it, i) => {
@@ -558,7 +570,9 @@ function selShapes(P) {
 }
 function selHighlight() {
   const el = $("#plot-field"); if (!el || !el.data || !S.profile) return;
-  Plotly.relayout(el, { shapes: (S.fieldShapes || []).concat(selShapes(S.profile)) });
+  const shapes = (S.fieldShapes || []).concat(selShapes(S.profile));
+  const key = JSON.stringify(shapes); if (el._selKey === key) return; el._selKey = key;
+  plotQueue(el, () => Plotly.relayout(el, { shapes }));
 }
 window.selHighlight = selHighlight;
 // keep plots fitted to their boxes when the layout around them changes (tabs, KPI rows, window size)
@@ -607,15 +621,17 @@ function plotRefl() {
       line: { color: PART_COLOR[p], width: 1.2, dash: mode === "both" ? "dot" : "solid" }, hovertemplate: "φ = %{y:.2f}°<extra></extra>" });
   }
   const yt = { R: "Reflectance R", T: "Transmission T", loss: "1 − R", phase: "Phase of r (deg)", both: "Reflectance R" }[mode];
-  const nTr = traces.filter((t) => t.showlegend !== false).length;
   const layout = {
-    // legend under the x-axis title, so it never overlaps the curves however many spectra are shown
-    font: PLOT_FONT, margin: { l: 70, r: mode === "both" ? 70 : 24, t: 20, b: nTr > 1 ? 104 : 56 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff", showlegend: nTr > 1,
+    font: PLOT_FONT, margin: { l: 70, r: mode === "both" ? 70 : 24, t: 14, b: 56 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff", showlegend: legendOn("#tab-refl"),
     xaxis: { title: { text: "Wavelength (nm)" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false },
     yaxis: { title: { text: yt }, showline: true, mirror: mode !== "both", linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false,
       type: mode === "loss" ? "log" : "linear", range: mode === "R" || mode === "both" ? [0, 1.02] : undefined, exponentformat: "power" },
     yaxis2: { title: { text: "Phase (deg, dotted)" }, overlaying: "y", side: "right", showgrid: false, range: [-180, 180], showline: true, linecolor: "#444", ticks: "outside" },
-    legend: { orientation: "h", x: 0, xanchor: "left", y: -0.2, yanchor: "top" },
+    // inside the axes, in a corner the curves rarely reach: R (and phase) plots upper left, outside the
+    // stopband where the side lobes stay low; 1 − R and T plots lower left
+    legend: { x: 0.01, xanchor: "left", y: mode === "loss" || mode === "T" ? 0.02 : 0.98, yanchor: mode === "loss" || mode === "T" ? "bottom" : "top",
+      bgcolor: "rgba(255,255,255,0.88)", bordercolor: "#ced4da", borderwidth: 1, font: { size: 11.5 },
+      title: { text: `${esc(S.design.name || "Design")}, λ<sub>design</sub> = ${R.design_wavelength} nm`, font: { size: 11.5 } } },
     shapes: [{ type: "line", x0: R.design_wavelength, x1: R.design_wavelength, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],
     // spectra that could not be computed: say why right on the plot, not only in the table below
     annotations: errs.map((e, i) => ({ xref: "paper", yref: "paper", x: 0.5, y: 0.5 - i * 0.16, showarrow: false, align: "center", width: 520,
@@ -633,6 +649,7 @@ function plotRefl() {
 $("#btn-refl").addEventListener("click", runRefl);
 $("#r-mode").addEventListener("change", plotRefl);
 $("#r-thr").addEventListener("change", runRefl);
+$("#tab-refl .legend-tog").addEventListener("change", plotRefl);
 function stopThr(sel) { const v = parseFloat($(sel).value); return Number.isFinite(v) && v > 0 && v < 1 ? v : 0.99; }
 function stopCells(st) {
   if (st.edge_short == null) return `<td class="n" colspan="3">R stays below ${st.threshold}</td>`;
@@ -716,12 +733,12 @@ function renderResults() {
   }
   h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">Internal loss by region (fraction per round trip)</td></tr>`;
   for (const b of r.loss_breakdown) h += `<tr><td>${esc(b.region)}</td><td class="n">${fmt(b.rt_loss, 5)}</td><td></td>${showV ? "<td></td>" : ""}<td class="def">${fmt(b.alpha_cm, 4)} cm⁻¹ of α<sub>i</sub></td></tr>`;
-  h += cavityRows(r.cavity, showV);
   h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">Transfer matrix at λ<sub>las</sub> (characteristic [E,H] matrix, substrate → top)</td></tr>`;
   ["m11", "m12", "m21", "m22"].forEach((m, i) => {
     const c = r.matrix[i], cv = r.matrix_vertical[i];
     h += `<tr><td>${m}</td><td class="n cx">${fmt(c[0], 6)} ${c[1] < 0 ? "−" : "+"} ${fmt(Math.abs(c[1]), 6)}i</td><td></td>${showV ? `<td class="n cx">${fmt(cv[0], 6)} ${cv[1] < 0 ? "−" : "+"} ${fmt(Math.abs(cv[1]), 6)}i</td>` : ""}<td class="def">${i === 0 ? "this program: exp(−iωt), k&gt;0 = loss; Vertical column: Vertical's sign convention" : ""}</td></tr>`;
   });
+  h += cavityRows(r.cavity, showV);
   h += `</tbody></table><p class="note">Solved in ${fmt(A.ms, 3)} ms. “Vertical convention” reproduces Vertical's numerical rules (|E|² sampled at the chosen point spacing, Γ<sub>enh</sub> relative to peak|E|²/2, transmission split by |E|² at the boundaries) for cross-checking old results; the Value column is the exact energy balance. See Help &amp; theory.</p>`;
   el.innerHTML = h;
 }
@@ -787,16 +804,18 @@ function initDbrTab() {
     w.querySelector(".dbr-x").value = d.x;
     w.querySelector(".dbr-mat").addEventListener("change", () => { dbrSyncX(w); runDbr(); });
     w.querySelector(".dbr-x").addEventListener("change", runDbr);
+    w.querySelector(".dbr-y").addEventListener("change", runDbr);
     dbrSyncX(w);
   });
   ["#dbr-lam", "#dbr-pairs", "#dbr-min", "#dbr-max", "#dbr-thr"].forEach((sel) => $(sel).addEventListener("change", runDbr));
   $("#dbr-pairs-mode").addEventListener("change", plotDbr);
   $("#dbr-mode").addEventListener("change", plotDbr);
+  $("#tab-dbr .legend-tog").addEventListener("change", plotDbr);
   $("#btn-dbr-swap").addEventListener("click", () => {
     const a = $('.dbr-medium[data-k="first"]'), b = $('.dbr-medium[data-k="second"]');
-    const ma = a.querySelector(".dbr-mat").value, xa = a.querySelector(".dbr-x").value;
-    a.querySelector(".dbr-mat").value = b.querySelector(".dbr-mat").value; a.querySelector(".dbr-x").value = b.querySelector(".dbr-x").value;
-    b.querySelector(".dbr-mat").value = ma; b.querySelector(".dbr-x").value = xa;
+    for (const c of [".dbr-mat", ".dbr-x", ".dbr-y"]) {
+      const va = a.querySelector(c).value; a.querySelector(c).value = b.querySelector(c).value; b.querySelector(c).value = va;
+    }
     dbrSyncX(a); dbrSyncX(b); runDbr();
   });
   $("#btn-dbr-insert").addEventListener("click", () => {
@@ -837,14 +856,18 @@ function dbrSyncX(w) {
   xl.style.display = x.style.display;
   xl.textContent = generic ? "n =" : `${((m && m.x_label) || "x").trim().split(/\s/)[0]} =`;
   xl.title = x.title;
+  const y = w.querySelector(".dbr-y"), yl = w.querySelector(".dbr-yl");
+  const hasY = !!(m && m.y_label);
+  y.style.display = yl.style.display = hasY ? "" : "none";
+  if (hasY) { yl.textContent = `${m.y_label.trim().split(/\s/)[0]} =`; y.title = yl.title = m.y_label; }
   if (generic && +x.value < 1) x.value = 3.0;
 }
 function dbrSpec(k) {
   const w = $(`.dbr-medium[data-k="${k}"]`); const mat = w.querySelector(".dbr-mat").value; const v = +w.querySelector(".dbr-x").value || 0;
-  const m = S.matByKey[mat];
+  const m = S.matByKey[mat]; const yv = m && m.y_label ? (+w.querySelector(".dbr-y").value || 0) : 0;
   if (mat === "Generic") return { material: mat, index_mode: "fixed", n_real: v || 3, name: `n=${v}` };
-  const lbl = mat === "AlGaAs" ? (v === 0 ? "GaAs" : v === 1 ? "AlAs" : `Al${v}GaAs`) : (m && m.x_label ? `${mat} ${v}` : mat);
-  return { material: mat, x: v, name: lbl };
+  const lbl = matFormula(mat, v, yv) || (m && m.label) || mat;
+  return { material: mat, x: v, y: yv, name: lbl };
 }
 function runDbr() {
   if (!$("#dbr-lam").value) $("#dbr-lam").value = S.design.design_wavelength;
@@ -855,14 +878,25 @@ function runDbr() {
   try { S.dbr = call("dbr_design", JSON.stringify(o)); } catch (e) { S.dbr = null; toast(e.message, true); return; }
   plotDbr();
 }
+function dbrDesc(withPairs = true) {
+  const a = dbrSpec("first").name, b = dbrSpec("second").name, inc = dbrSpec("incident").name, ex = dbrSpec("exit").name;
+  return `${withPairs ? $("#dbr-pairs").value + "-pair " : ""}${a}/${b} DBR, λ<sub>0</sub> = ${$("#dbr-lam").value} nm<br>from ${inc}, exit ${ex}`;
+}
+function legendOn(tab) { const c = $(`${tab} .legend-tog`); return !c || c.checked; }
+function insideLegend(where = "top") {
+  return { x: 0.99, xanchor: "right", y: where === "top" ? 0.98 : 0.03, yanchor: where === "top" ? "top" : "bottom",
+    bgcolor: "rgba(255,255,255,0.88)", bordercolor: "#ced4da", borderwidth: 1, font: { size: 11.5 } };
+}
 function plotDbr() {
   const D = S.dbr; if (!D) return;
   const mode = $("#dbr-mode").value; const sp = D.spectrum; const lam0 = +$("#dbr-lam").value;
   const y = mode === "R" ? sp.R : mode === "phase" ? sp.phase_deg : sp.R.map((r) => (r == null ? null : Math.max(1 - r, 1e-12)));
   const yt = { R: "Reflectance R", phase: "Phase of r (deg)", loss: "1 − R" }[mode];
-  Plotly.react($("#plot-dbr"), [{ x: sp.wavelength, y, type: "scatter", mode: "lines", line: { color: "#1f5fae", width: 1.8 }, hovertemplate: "%{x:.2f} nm<br>%{y:.6g}<extra></extra>" }], {
-    font: PLOT_FONT, margin: { l: 70, r: 24, t: 30, b: 52 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff", showlegend: false,
-    title: { text: `${$("#dbr-pairs").value}-pair DBR at λ<sub>0</sub> = ${lam0} nm${sp.R.some((r) => r == null) ? " (blank where the incident medium absorbs)" : ""}`, font: { size: 13 }, x: 0.01, xanchor: "left" },
+  const desc = dbrDesc();
+  Plotly.react($("#plot-dbr"), [{ x: sp.wavelength, y, type: "scatter", mode: "lines", name: desc, line: { color: "#1f5fae", width: 1.8 }, hovertemplate: "%{x:.2f} nm<br>%{y:.6g}<extra></extra>" }], {
+    font: PLOT_FONT, margin: { l: 70, r: 24, t: 14, b: 52 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff", showlegend: legendOn("#tab-dbr"),
+    legend: insideLegend(mode === "loss" ? "bottom" : "top"),
+    annotations: sp.R.some((r) => r == null) ? [{ xref: "paper", yref: "paper", x: 0.01, y: 0.02, xanchor: "left", yanchor: "bottom", showarrow: false, text: "blank where the incident medium absorbs", font: { size: 11, color: "#868e96" } }] : [],
     xaxis: { title: { text: "Wavelength (nm)" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false },
     yaxis: { title: { text: yt }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false, type: mode === "loss" ? "log" : "linear", range: mode === "R" ? [0, 1.02] : undefined, exponentformat: "power" },
     shapes: [{ type: "line", x0: lam0, x1: lam0, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],
@@ -885,9 +919,11 @@ function plotDbr() {
   const ks = D.R_vs_pairs.map((_, i) => i + 1);
   const pm = $("#dbr-pairs-mode").value, lossP = pm === "loss";
   Plotly.react($("#plot-dbr-pairs"), [{ x: ks, y: lossP ? D.R_vs_pairs.map((r) => Math.max(1 - r, 1e-12)) : D.R_vs_pairs, type: "scatter", mode: "lines+markers", marker: { size: 4 }, line: { color: "#d9480f", width: 1.5 },
+    name: dbrDesc(false),
     hovertemplate: lossP ? "%{x} pairs: 1−R = %{y:.3g}<extra></extra>" : "%{x} pairs: R = %{y:.6f}<extra></extra>" }], {
-    font: PLOT_FONT, margin: { l: 64, r: 16, t: 28, b: 46 }, showlegend: false, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
+    font: PLOT_FONT, margin: { l: 64, r: 16, t: 28, b: 46 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
     title: { text: `${lossP ? "1 − R" : "R"} at λ<sub>0</sub> versus number of pairs`, font: { size: 12 }, x: 0.01, xanchor: "left" },
+    showlegend: legendOn("#tab-dbr"), legend: insideLegend(lossP ? "top" : "bottom"),
     xaxis: { title: { text: "pairs" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
     yaxis: lossP ? { type: "log", title: { text: "1 − R" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", exponentformat: "power" }
       : { type: "linear", title: { text: "R" }, range: [0, 1.02], showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },

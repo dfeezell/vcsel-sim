@@ -354,8 +354,12 @@ function addPlotBar(el) {
     else if (k === "in") zoomBy(0.5);
     else if (k === "out") zoomBy(2);
     else if (k === "reset") {
-      const upd = {}; for (const ax of Object.keys(el._fullLayout || {}).filter((a) => /^[xy]axis\d*$/.test(a))) upd[`${ax}.autorange`] = true;
-      Plotly.relayout(el, upd);
+      // back to the ranges of the last full redraw (explicit ranges: no autorange pass, which could
+      // fail when it ran at the same time as another relayout)
+      const home = el._home; const upd = {};
+      if (home) for (const [ax, r] of Object.entries(home)) { upd[`${ax}.range`] = r.slice(); upd[`${ax}.autorange`] = false; }
+      else for (const ax of Object.keys(el.layout || {}).filter((a) => /^[xy]axis\d*$/.test(a))) upd[`${ax}.autorange`] = true;
+      plotQueue(el, () => Plotly.relayout(el, upd));
     } else {
       Plotly.downloadImage(el, { format: k, width: el.clientWidth, height: el.clientHeight, scale: k === "png" ? 4 : 1,
         filename: `${(S.design?.name || "vcsel").replace(/[^\w.-]+/g, "_")}_${el.id.replace("plot-", "")}` });
