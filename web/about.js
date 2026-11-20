@@ -100,7 +100,9 @@ Other published pairs are 5 / 11 (see Debernardi et al., IEEE JSTQE 25, 1700914 
 (H. C. Casey, Jr. and P. L. Carter, Appl. Phys. Lett. 44, 82 (1984)) and 25×10⁻¹⁸ cm² at 1.6 µm (C. H. Henry et al., IEEE J. Quantum Electron. QE-19, 947 (1983), who measured the same
 values in InP, In<sub>0.53</sub>Ga<sub>0.47</sub>As and GaAs, so they apply across the lattice-matched quaternary), linear in between and held constant outside;
 J. Taylor and V. Tolstikhin, J. Appl. Phys. 87, 1054 (2000) reproduce them with a 6×6 Luttinger–Kohn model.
-Electrons use 4×10⁻¹⁸ cm² (n-GaAs at 1.5 µm, D. C. Look et al., Appl. Phys. Lett. 65, 2188 (1994)) until an InP-specific value is added.</li>
+Electrons: W. Walukiewicz et al., J. Appl. Phys. 51, 2659 (1980), Table III (n-InP, 300 K, 10 µm, uncompensated), with the optical-phonon, ionized-impurity and
+acoustic-phonon parts scaled to the design wavelength as λ<sup>2.5</sup>, λ<sup>3.5</sup> and λ<sup>1.5</sup> (their eq. 2). Impurity scattering grows faster than n, so σ
+depends on the doping: about 0.7×10⁻¹⁸ cm² at 1.55 µm and 10¹⁸ cm⁻³. The InP value is also used for the lattice-matched alloys.</li>
 <li><b>GaN, AlGaN, InGaN, AlN</b>: electrons use the phonon-assisted cross-section of E. Kioupakis, P. Rinke and C. G. Van de Walle, Appl. Phys. Express 3, 082101 (2010)
 (Table I fit, 380–680 nm, light polarized in the c-plane), about 0.6×10⁻¹⁸ cm² at 450 nm, which matches the measurement of S. Pimputkar et al., J. Cryst. Growth 432, 49 (2015).
 In Mg-doped layers most of the loss is absorption by holes bound to activated Mg acceptors rather than by free holes, so enter the <b>Mg concentration</b> as the doping.

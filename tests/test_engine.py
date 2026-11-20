@@ -221,3 +221,11 @@ def test_doping_absorption_literature_values():
     assert abs(fca.sigma("InGaAsP", "p", 1600.0) - 25e-18) < 1e-30          # Henry 1983
     L = Layer(material="InP", layer_type="p-type", doping=5e17, absorption_mode="doping")
     assert abs(float(L.alpha(1300.0)) - 7.0) < 1e-9
+
+
+def test_n_inp_walukiewicz():
+    from vcsel_sim import fca
+    # Table III at 10 um, 1e18: 24.22 + 3.699 + 47.01 cm^-1
+    assert abs(float(fca.sigma("InP", "n", 10000.0, N=1e18)) * 1e18 - 74.93) < 0.05
+    s = float(fca.sigma("InGaAsP", "n", 1550.0, N=1e18))
+    assert 0.6e-18 < s < 0.8e-18
