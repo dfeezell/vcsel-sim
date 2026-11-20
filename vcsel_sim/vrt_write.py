@@ -78,6 +78,9 @@ class _Writer:
         o += struct.pack("<i", 1) + _name(L.name) + b"\x00" * 8 + struct.pack("<2i", 350, 300)
 
     def group(self, g: Group):
+        if g.is_graded:                                      # Vertical has no grading: write the explicit layers
+            from .structure import ungraded_equivalent
+            g = ungraded_equivalent(g, self.lam)
         self._prefix()
         self.out += b"\xfd\xff\x63\x00" + struct.pack("<H", len(g.children))
         y0 = self.y

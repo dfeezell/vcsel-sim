@@ -7,7 +7,7 @@
 <meta name="description" content="Browser-based 1D transfer-matrix VCSEL design tool: layer stacks, threshold gain, standing-wave field, mirror reflectance.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="web/app.css?v=3.19">
+<link rel="stylesheet" href="web/app.css?v=3.20">
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 </head>
@@ -102,6 +102,7 @@
       <button data-tab="field" class="active">Field &amp; index</button>
       <button data-tab="refl">Reflectance</button>
       <button data-tab="dbr">DBR design</button>
+      <button data-tab="sweep">Sweep</button>
       <button data-tab="results">Results</button>
       <button data-tab="layers">Layer table</button>
       <button data-tab="materials">Materials</button>
@@ -155,6 +156,8 @@
       <div class="plot-opts">
         <label>From <input type="number" id="dbr-min" step="1"> to <input type="number" id="dbr-max" step="1"> nm</label>
         <label title="The stopband is the continuous band around λ0 where R stays at or above this value">Stopband R ≥ <input type="number" id="dbr-thr" value="0.99" min="0" max="1" step="0.005" style="width:72px"></label>
+        <label title="Graded interfaces between the two layers (same alloy on both sides), with the Bragg period kept">Grading <select id="dbr-grade"><option value="none">abrupt</option><option value="linear">linear</option><option value="biparabolic">bi-parabolic</option></select>
+          <input type="number" id="dbr-grade-t" value="20" min="0" step="1" style="width:56px"> nm</label>
         <label><input type="checkbox" class="legend-tog" checked> Legend</label>
         <label>Plot <select id="dbr-mode"><option value="R">Reflectance R</option><option value="phase">Phase of r</option><option value="loss">1 − R (log)</option></select></label>
         <button class="btn" id="btn-dbr-swap" title="Swap the order of the two layers">⇅ Swap layers</button>
@@ -174,6 +177,35 @@
         <div id="plot-dbr-pairs" class="dbr-pairs-plot"></div></div>
       </div>
       <p class="note">Quarter-wave stack at λ<sub>0</sub>, normal incidence, light arriving from the incident medium onto the 1st layer. For a mirror seen from a GaAs cavity, use GaAs as the incident medium and put the low-index layer first. Penetration depth: Coldren &amp; Corzine eqs. A7.13 and A7.25, with the Ch. 3 approximations for comparison. Analytic R uses ((n<sub>0</sub> − Y)/(n<sub>0</sub> + Y))², Y = (n<sub>1</sub>/n<sub>2</sub>)<sup>2m</sup> n<sub>exit</sub>.</p>
+    </div>
+
+    <div class="tab" id="tab-sweep">
+      <div class="plot-opts">
+        <label>Vary <select id="sw-param"></select></label>
+        <label id="sw-target-l">of <select id="sw-target"></select></label>
+        <label>from <input type="number" id="sw-from" step="any" style="width:90px"> to <input type="number" id="sw-to" step="any" style="width:90px"> <span id="sw-unit"></span></label>
+        <label>Points <input type="number" id="sw-n" value="21" min="2" max="401" step="1" style="width:60px"></label>
+        <span id="sw-now" class="hint"></span>
+      </div>
+      <div class="plot-opts">
+        <label title="Optional: repeat the sweep for a few values of a second input, one curve each">Curves for <select id="sw-param2"></select></label>
+        <label id="sw-target2-l" style="display:none">of <select id="sw-target2"></select></label>
+        <label>values <input type="text" id="sw-vals2" placeholder="e.g. 18, 20, 22" style="width:150px"> <span id="sw-unit2"></span></label>
+      </div>
+      <div class="plot-opts">
+        <label>Plot <select id="sw-y1"></select></label>
+        <label>and, right axis, <select id="sw-y2"></select></label>
+        <label><input type="checkbox" class="legend-tog" checked> Legend</label>
+        <button class="btn primary" id="sw-run">▶ Run sweep</button>
+        <button class="btn" id="sw-stop">Stop</button>
+        <span id="sw-prog" class="hint"></span>
+        <span class="spacer"></span>
+        <button class="btn sm" id="sw-csv" title="Every computed quantity at every point">CSV</button>
+      </div>
+      <div id="plot-sweep" class="plot short"></div>
+      <div id="sw-pick" class="sw-pick">Click a point on the plot to see its values and apply it to the design.</div>
+      <div id="sw-table" class="table-wrap"></div>
+      <p class="note">Each point is a full threshold analysis (exact outgoing-wave condition) of the design with the chosen input changed; nothing else is re-optimised. The lasing mode is followed from point to point, starting at the current λ<sub>las</sub>. A layer inside a group changes in every repeat. Round-trip conversion and η<sub>i</sub> follow the Results tab settings.</p>
     </div>
 
     <div class="tab" id="tab-results">
@@ -218,9 +250,10 @@
 </div>
 <div id="toast" class="toast"></div>
 
-<script src="web/about.js?v=3.19"></script>
-<script src="web/stackviz.js?v=3.19"></script>
-<script src="web/app.js?v=3.19"></script>
-<script src="web/editor.js?v=3.19"></script>
+<script src="web/about.js?v=3.20"></script>
+<script src="web/stackviz.js?v=3.20"></script>
+<script src="web/app.js?v=3.20"></script>
+<script src="web/editor.js?v=3.20"></script>
+<script src="web/sweep.js?v=3.20"></script>
 </body>
 </html>

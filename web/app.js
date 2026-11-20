@@ -65,7 +65,7 @@ async function boot() {
     S.api = S.py.pyimport("vcsel_sim.api");
     S.materials = call("material_catalog").materials;
     S.materials.forEach((m) => (S.matByKey[m.key] = m));
-    initMaterialsTab(); initDbrTab(); initDbrExtras(); initStackViews();
+    initMaterialsTab(); initDbrTab(); initDbrExtras(); initStackViews(); initSweepTab();
     ["#plot-field", "#plot-refl", "#plot-mat", "#plot-dbr", "#plot-dbr-pairs"].forEach((sel) => addPlotBar($(sel)));
     let start = "gaas_980";
     try { const saved = localStorage.getItem("vcsel-design"); if (saved) { setDesign(JSON.parse(saved), false); start = null; } } catch (e) { /* ignore */ }
@@ -189,6 +189,7 @@ function runAll() {
   if (tab === "refl") runRefl();
   if (tab === "dbr" && !S.dbr) runDbr();
   if (tab === "layers") renderLayerTable();
+  if (tab === "sweep") swRefresh();
 }
 function runAnalysis(explicit = true) {
   if (!S.design) return;
@@ -314,7 +315,7 @@ function renderStack() {
         rows.push(`<div class="row group ${selKey === key ? "sel" : ""}" data-path="${key}" ${pad} title="${countLayers(it)} layer${countLayers(it) === 1 ? "" : "s"} per period, repeated ${it.repeats}×">
           <div class="nm"><span class="caret" data-toggle="${it._id}">${coll ? "▸" : "▾"}</span><span class="t">${subHTML(it.name)}</span>
           <span class="rep">× <input type="number" min="0" step="1" value="${it.repeats}" data-rep="${key}"></span>
-          ${it.role !== "none" ? `<span class="badge role">${ROLES.find((r) => r[0] === it.role)?.[1] || it.role}</span>` : ""}</div>
+          ${it.role !== "none" ? `<span class="badge role">${ROLES.find((r) => r[0] === it.role)?.[1] || it.role}</span>` : ""}${isGraded(it) ? `<span class="badge grade" title="${gradeTag(it)}">graded</span>` : ""}</div>
           <div class="num" title="period × repeats">${fmt(per * it.repeats, 4)}</div><div class="num"></div></div>`);
         if (!coll) walk(it.children, p, depth + 1); else k += countLeaves(it);
       } else {
@@ -415,6 +416,7 @@ function renderProps() {
       <label>Role</label><select data-f="role">${ROLES.map(([v, l]) => `<option value="${v}" ${v === it.role ? "selected" : ""}>${l}</option>`).join("")}</select>
       <div class="full hint">Mark the mirror groups as Top / Bottom DBR so the Reflectance tab can show each mirror from the cavity, and the loss budget can be split by region. Layers inside a group are listed top → bottom.</div>
       <label>Apertured</label><div class="pair"><input type="checkbox" data-f="apertured" ${it.apertured ? "checked" : ""} disabled><span class="hint">2D aperture analysis — coming in phase 2</span></div>
+      ${gradingForm(it)}
     </div>`;
   } else {
     $("#props-title").textContent = isBoundary ? (S.sel[0] === "top" ? "Exit medium (top, semi-infinite)" : "Substrate (bottom, semi-infinite)") : "Layer";
@@ -447,6 +449,27 @@ function renderProps() {
     </div>`;
   }
 }
+/* ---- graded interfaces (group option) */
+const GRADE_DEF = { profile: "none", thickness_nm: 20, steps: 10, keep_period: true };
+function gradable(g) {
+  if (!g || g.kind !== "group" || g.children.length < 2 || g.children.some((c) => c.kind === "group")) return false;
+  const m = g.children.length;
+  return g.children.some((A, i) => { const B = g.children[(i + 1) % m];
+    return A.material === B.material && A.index_mode === "model" && B.index_mode === "model" && !!S.matByKey[A.material]?.x_label; });
+}
+function isGraded(g) { return !!(g && g.grading && g.grading.profile && g.grading.profile !== "none" && +g.grading.thickness_nm > 0 && gradable(g)); }
+function gradeTag(g) { return isGraded(g) ? `${fmt(+g.grading.thickness_nm, 3)} nm ${g.grading.profile === "biparabolic" ? "bi-parabolic" : "linear"} grade` : ""; }
+function gradingForm(g) {
+  const isDbr = g.role === "top_dbr" || g.role === "bottom_dbr";
+  if (!gradable(g)) return isDbr ? `<div class="full sec-h">Graded interfaces</div><div class="full hint">Grading needs a group of plain layers with the same alloy on both sides of an interface (e.g. two AlGaAs compositions).</div>` : "";
+  const G = Object.assign({}, GRADE_DEF, g.grading || {}); const on = G.profile !== "none";
+  return `<div class="full sec-h">Graded interfaces</div>
+      <label>Grading</label><select data-f="g_profile">${[["none", "abrupt (none)"], ["linear", "linear"], ["biparabolic", "bi-parabolic (S-shaped)"]].map(([v, l]) => `<option value="${v}" ${v === G.profile ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <label>Grade thickness</label><div class="pair"><input type="number" min="0" step="1" data-f="g_thickness_nm" value="${G.thickness_nm}" ${on ? "" : "disabled"}><span class="hint">nm per interface, centred on it</span></div>
+      <label>Steps</label><div class="pair"><input type="number" min="1" max="100" step="1" data-f="g_steps" value="${G.steps}" ${on ? "" : "disabled"}><span class="hint">sub-layers per grade (${fmt(G.thickness_nm / Math.max(G.steps, 1), 3)} nm each)</span></div>
+      <label>Keep Bragg period</label><div class="pair"><input type="checkbox" data-f="g_keep_period" ${G.keep_period ? "checked" : ""} ${on ? "" : "disabled"}><span class="hint">rescale the uniform parts so a period keeps its optical thickness</span></div>
+      <div class="full hint">Every interface inside the group is graded, including those between periods; the group's outer faces stay abrupt. Composition follows the profile in equal-thickness steps; doping and absorption come from the nearer layer.</div>`;
+}
 function nodeValue(path) {
   if (!S.nodeInfo) return null;
   if (path[0] === "top") return Object.assign({ d: 0, eg: null }, S.nodeInfo.top);
@@ -460,6 +483,13 @@ function nodeValue(path) {
 $("#props").addEventListener("change", (e) => {
   const f = e.target.dataset.f; if (!f) return;
   const it = getAt(S.sel);
+  if (f.startsWith("g_")) {                                   // grading settings of a group
+    const k = f.slice(2); let v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    if (k === "thickness_nm") v = Math.max(0, parseFloat(v) || 0);
+    if (k === "steps") v = Math.min(100, Math.max(1, parseInt(v) || 1));
+    it.grading = Object.assign({}, GRADE_DEF, it.grading || {}, { [k]: v });
+    changed(); renderProps(); return;
+  }
   let v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
   if (e.target.dataset.num) v = Math.abs(parseFloat(v)) || 0;
   if (f === "doping" && v > 0 && it.absorption_mode !== "doping" && (it.layer_type === "n-type" || it.layer_type === "p-type")) {
@@ -911,7 +941,7 @@ function initDbrTab() {
     w.querySelector(".dbr-y").addEventListener("change", runDbr);
     dbrSyncX(w);
   });
-  ["#dbr-lam", "#dbr-pairs", "#dbr-min", "#dbr-max", "#dbr-thr"].forEach((sel) => $(sel).addEventListener("change", runDbr));
+  ["#dbr-lam", "#dbr-pairs", "#dbr-min", "#dbr-max", "#dbr-thr", "#dbr-grade", "#dbr-grade-t"].forEach((sel) => $(sel).addEventListener("change", runDbr));
   $("#dbr-pairs-mode").addEventListener("change", plotDbr);
   $("#dbr-mode").addEventListener("change", plotDbr);
   $("#tab-dbr .legend-tog").addEventListener("change", plotDbr);
@@ -979,12 +1009,16 @@ function runDbr() {
   if (!$("#dbr-min").value || !$("#dbr-max").value) { $("#dbr-min").value = Math.round(lam * 0.8); $("#dbr-max").value = Math.round(lam * 1.2); }
   const o = { lambda0: lam, pairs: +$("#dbr-pairs").value, first: dbrSpec("first"), second: dbrSpec("second"), incident: dbrSpec("incident"), exit: dbrSpec("exit"),
     lambda_min: +$("#dbr-min").value, lambda_max: +$("#dbr-max").value, points: 2001, temperature: S.design?.temperature ?? 23, threshold: stopThr("#dbr-thr") };
+  $("#dbr-grade-t").disabled = $("#dbr-grade").value === "none";
+  if ($("#dbr-grade").value !== "none") o.grading = { profile: $("#dbr-grade").value, thickness_nm: Math.max(0, +$("#dbr-grade-t").value || 0), steps: 10, keep_period: true };
   try { S.dbr = call("dbr_design", JSON.stringify(o)); } catch (e) { S.dbr = null; toast(e.message, true); return; }
+  if (S.dbr.graded_note) toast(S.dbr.graded_note, true, 6000);
   plotDbr();
 }
 function dbrDesc(withPairs = true) {
   const nm = (k) => { const s = dbrSpec(k); return s.material === "Generic" ? s.name : subFormula(s.name); };
-  return wrapLegend(`${withPairs ? $("#dbr-pairs").value + "-pair " : ""}${nm("first")}/${nm("second")} DBR, λ<sub>0</sub> = ${$("#dbr-lam").value} nm<br>from ${nm("incident")}, exit ${nm("exit")}`);
+  const gr = S.dbr?.graded ? `, ${$("#dbr-grade-t").value} nm ${$("#dbr-grade").value === "biparabolic" ? "bi-parabolic" : "linear"} grades` : "";
+  return wrapLegend(`${withPairs ? $("#dbr-pairs").value + "-pair " : ""}${nm("first")}/${nm("second")} DBR${gr}, λ<sub>0</sub> = ${$("#dbr-lam").value} nm<br>from ${nm("incident")}, exit ${nm("exit")}`);
 }
 function legendOn(tab) { const c = $(`${tab} .legend-tog`); return !c || c.checked; }
 function insideLegend(where = "top") {
@@ -1009,13 +1043,13 @@ function plotDbr() {
   }, PLOT_CONFIG);
   const P = D.penetration || {};
   $("#dbr-kpis").innerHTML = [
-    kpi("R at λ<sub>0</sub> (TMM / analytic)", `${fmt(D.at_design.R, 7)} / ${fmt(D.R_analytic, 7)}`),
+    kpi(`R at λ<sub>0</sub> (TMM${D.graded ? ", graded" : ""} / analytic${D.graded ? ", abrupt" : ""})`, `${fmt(D.at_design.R, 7)} / ${fmt(D.R_analytic, 7)}`),
     kpi("1 − R at λ<sub>0</sub>", fmt(1 - D.at_design.R, 4)),
     kpi(`Stopband R ≥ ${D.stopband.threshold} / infinite stack`, `${D.stopband.edge_short == null ? "none" : fmt(D.stopband.width_nm, 4)} / ${fmt(D.stopband_analytic, 4)}`, "nm"),
     kpi("n<sub>1</sub> / n<sub>2</sub> at λ<sub>0</sub>", `${fmt(D.n_first, 5)} / ${fmt(D.n_second, 5)}`),
     kpi("d<sub>1</sub> / d<sub>2</sub> (λ/4)", `${fmt(D.d_first, 5)} / ${fmt(D.d_second, 5)}`, "nm"),
     kpi("Period Λ / total", `${fmt(D.period, 5)} nm / ${fmt(D.total_thickness / 1000, 4)}`, "µm"),
-    kpi("Penetration L<sub>eff</sub> (A7.25)", fmt(P.L_eff, 5), "nm"),
+    kpi(`Penetration L<sub>eff</sub> (A7.25${D.graded ? ", abrupt" : ""})`, fmt(P.L_eff, 5), "nm"),
     kpi("tanh(2mr)/2κ · Λ/4r", `${fmt(P.L_eff_tanh, 5)} · ${fmt(P.L_eff_long, 5)}`, "nm"),
     kpi("r · m<sub>eff</sub> · κ", `${fmt(P.r, 4)} · ${fmt(P.m_eff, 4)} · ${fmt(P.kappa_cm, 4)}`, "κ in cm⁻¹"),
   ].join("");
@@ -1046,6 +1080,7 @@ $$("#tabs button").forEach((b) => b.addEventListener("click", () => {
   if (tab === "refl") runRefl();
   if (tab === "dbr" && !S.dbr) runDbr();
   if (tab === "layers") renderLayerTable();
+  if (tab === "sweep") swRefresh();
   if (tab === "about") $("#about").innerHTML = window.ABOUT_HTML || "";
   window.dispatchEvent(new Event("resize"));
 }));

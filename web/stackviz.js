@@ -52,7 +52,7 @@ function diagramHTML(design, info, opts = {}) {
       const rep = ed ? `<span class="rep">×<input type="number" min="0" step="1" value="${it.repeats}" data-rep="${key}" title="Repetitions"></span>` : `<span class="rep">×${it.repeats}</span>`;
       return `<div class="dg-group ${selKey === key ? "sel" : ""}" data-path="${key}" ${ed ? 'draggable="true"' : ""}>
         <div class="dg-glab" data-path="${key}" data-drop="head" style="left:${-(maxD - depth) * LW}px;width:${LW}px" title="${esc(it.name)}: repeated ${it.repeats}×${roleTxt ? ` (${esc(roleTxt)})` : ""}${ed ? ". Drag to move; drop layers here to add them to this group" : ""}">
-          <div class="dg-gtxt"><span class="dg-name">${subHTML(it.name)}</span>${rep}${roleTxt ? `<span class="dg-role">${esc(roleTxt)}</span>` : ""}</div></div>
+          <div class="dg-gtxt"><span class="dg-name">${subHTML(it.name)}</span>${rep}${roleTxt ? `<span class="dg-role">${esc(roleTxt)}</span>` : ""}${isGraded(it) ? `<span class="dg-role dg-grade" title="${gradeTag(it)}">graded ${fmt(+it.grading.thickness_nm, 3)} nm</span>` : ""}</div></div>
         ${body}</div>`;
     }
     const ni = nodes[k++] || {};

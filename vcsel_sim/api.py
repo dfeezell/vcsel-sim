@@ -97,6 +97,38 @@ def run_analysis(design_json, options_json="{}"):
         return fail(e)
 
 
+SWEEP_KEYS = ["wavelength", "threshold_gain", "modal_gain", "confinement", "enhancement", "alpha_i", "alpha_m",
+              "alpha_m_top", "alpha_m_bottom", "R_top", "R_bottom", "ext_eff", "ext_eff_top", "ext_eff_bottom",
+              "slope_top", "slope_bottom", "lifetime_ps", "effective_length", "converged"]
+
+
+def sweep_point(design_json, options_json="{}"):
+    """One point of a parameter sweep: the threshold analysis without the field profile, returning
+    only scalar results (plus passive mirror reflectances and the cavity optical thickness)."""
+    try:
+        s = _structure(design_json)
+        o = json.loads(options_json or "{}")
+        a = laser.analyze(s, lam_guess=o.get("lambda_guess"), normalize="bottom", spacing_passive=50.0,
+                          spacing_active=1.0, internal_efficiency=float(o.get("internal_efficiency", 1.0)),
+                          rt_model=o.get("rt_model", "exact"))
+        r = a.summary()
+        out = {k: r.get(k) for k in SWEEP_KEYS}
+        flat = s.flatten()
+        out["total_thickness_um"] = float(sum(f.thickness_nm for f in flat)) / 1000
+        try:
+            c = cavity.cavity_report(laser.Model(s), a)
+            out["R_top_passive"] = c.get("R_top_passive")
+            out["R_bottom_passive"] = c.get("R_bottom_passive")
+            out["cavity_optical_waves"] = c.get("cavity_optical_waves")
+            out["L_pen_top"] = (c.get("top") or {}).get("L_eff_phase")
+            out["L_pen_bottom"] = (c.get("bottom") or {}).get("L_eff_phase")
+        except Exception:
+            pass
+        return ok({"point": out})
+    except Exception as e:
+        return fail(e)
+
+
 def reflectance(design_json, options_json="{}"):
     try:
         s = _structure(design_json)
@@ -254,9 +286,13 @@ def dbr_design(options_json):
         inc = _layer_spec(o.get("incident", {"material": "Air"}), "incident")
         ext = _layer_spec(o.get("exit", {"material": "AlGaAs", "x": 0}), "exit")
 
+        grading = o.get("grading") or None
+        if grading and (grading.get("profile", "none") in ("none", "") or not float(grading.get("thickness_nm", 0) or 0)):
+            grading = None
+
         def build(npairs):
             return Structure(name="DBR", design_wavelength=lam0, top=inc, substrate=ext,
-                             stack=[Group(name=o.get("name", "DBR"), repeats=npairs, children=[A, B])])
+                             stack=[Group(name=o.get("name", "DBR"), repeats=npairs, children=[A, B], grading=grading)])
 
         s = build(m)
         lo = float(o.get("lambda_min", lam0 * 0.8))
@@ -270,6 +306,13 @@ def dbr_design(options_json):
         ns = float(np.real(np.atleast_1d(ext.index(lam0))[0]))
         nH, nL = max(nA, nB), min(nA, nB)
         dA, dB = A.physical_thickness(lam0), B.physical_thickness(lam0)
+        graded_note = None
+        if grading:
+            from .structure import can_grade
+            if not can_grade(A, B):
+                graded_note = "Grading ignored: it needs the same alloy model on both layers (e.g. AlGaAs with two compositions)."
+                grading = None
+        flat = build(m).flatten()
         # analytic quarter-wave reflectance (lossless, real indices)
         Y = (nA / nB) ** (2 * m) * ns
         R_an = ((n0 - Y) / (n0 + Y)) ** 2
@@ -284,14 +327,16 @@ def dbr_design(options_json):
         for t in o.get("targets", [0.99, 0.995, 0.999, 0.9995, 0.9999]):
             k = next((i + 1 for i, r in enumerate(Rm) if r >= t), None)
             need[str(t)] = k
-        grp = Group(name=o.get("name", "DBR"), repeats=m, role=o.get("role", "none"), children=[A, B])
+        grp = Group(name=o.get("name", "DBR"), repeats=m, role=o.get("role", "none"), children=[A, B], grading=grading)
         return ok({
             "spectrum": {"wavelength": spec["wavelength"], "R": spec["R"], "T": spec["T"],
                          "phase_deg": spec["phase_deg"]},
             "stopband": st, "at_design": {"R": float(at["R"][0]), "T": float(at["T"][0]),
                                           "phase_deg": float(at["phase_deg"][0])},
             "n_first": nA, "n_second": nB, "n_incident": n0, "n_exit": ns,
-            "d_first": dA, "d_second": dB, "period": dA + dB, "total_thickness": m * (dA + dB),
+            "d_first": dA, "d_second": dB, "period": dA + dB, "total_thickness": float(sum(f.thickness_nm for f in flat)),
+            "graded": bool(grading), "graded_note": graded_note,
+            "layers": [{"name": f.layer.name, "x": f.layer.x, "y": f.layer.y, "material": f.layer.material, "d": f.thickness_nm} for f in flat],
             "R_analytic": R_an, "stopband_analytic": dl_stop, "penetration": pen,
             "R_vs_pairs": Rm, "pairs_needed": need, "group": grp.to_dict(),
         })

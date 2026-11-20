@@ -70,6 +70,20 @@ huge spike at the cavity wavelength. “Top DBR (from cavity)” is the reflecta
 The top of a stopband is very flat, so λ at R<sub>max</sub> can lie several nm from the design wavelength when the two mirror materials absorb differently:
 the standing wave sits mainly in the low-index layers at the short-wavelength side of the band and in the high-index layers at the long-wavelength side.
 The stopband center is the better measure of where a mirror is centered, and the laser locks to the cavity resonance, not to R<sub>max</sub>.</p>
+<h3>Parameter sweep</h3>
+<p>The <b>Sweep</b> tab varies one input over a range and runs the full threshold analysis at every point: the repeats of a group (DBR pairs, wells),
+a layer's thickness, composition x or y, absorption or doping, the thickness scale of one group or of the whole stack (a growth-rate error), a group's grading thickness,
+the temperature or the design wavelength. An optional second input gives a family of curves (up to 8 values). Two results can be plotted at once (left and right axis);
+the table and CSV hold every computed quantity. The lasing mode is followed continuously from the current design outwards. Click a point to see its values and
+<b>Apply to design</b> (Undo reverts it).</p>
+<h3>Graded DBR interfaces</h3>
+<p>A periodic group (e.g. an Al<sub>0.90</sub>Ga<sub>0.10</sub>As/GaAs DBR) can have graded interfaces, set in the group editor: <i>linear</i> or <i>bi-parabolic</i> (two parabolas, S-shaped, zero slope at both ends),
+a grade thickness per interface and the number of sub-layers. Each interface inside the group, including those between periods, is replaced by a composition ramp centred on it
+(each neighbour gives up half the grade thickness); the group's outer faces stay abrupt. The ramp is drawn as equal-thickness steps whose composition follows the profile, so the
+transfer matrix sees the real index profile; doping and absorption come from the nearer layer. With <i>Keep Bragg period</i> (default) the uniform parts of the layers are scaled by one
+factor so a period keeps its optical thickness at λ<sub>design</sub>, which keeps the stopband centred. Grading lowers the index contrast seen by the wave, so a graded mirror needs more
+pairs for the same reflectance. The DBR design tab has the same option. The Coldren penetration-depth and analytic-R formulas assume abrupt layers and are labelled so;
+the transfer-matrix values include the grading. Old Vertical files get the explicit graded layers.</p>
 <h3>Cavity tuning (Vertical's Marks / Force Wave)</h3>
 <p>Tick <i>Marked</i> on the layers that may change (for example the two cavity spacers), then press <b>Tune cavity</b>. All marked thicknesses are scaled by a
 common factor until the cold-cavity resonance falls exactly on the design wavelength.</p>

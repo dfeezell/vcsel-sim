@@ -240,3 +240,53 @@ def test_stopband_threshold_grows_with_pairs():
              "incident": {"material": "AlGaAs", "x": 0}, "exit": {"material": "AlGaAs", "x": 0}, "points": 2001}
         w.append(json.loads(api.dbr_design(json.dumps(o)))["stopband"]["width_nm"])
     assert w[0] == 0 and 0 < w[1] < w[2] < 99.4
+
+
+def _graded_980(gt=20.0, profile="linear", keep=True):
+    d = json.loads(api.template("gaas_980")); d = d.get("design", d)
+    for it in d["stack"]:
+        if it.get("kind") == "group" and it["role"] in ("top_dbr", "bottom_dbr"):
+            it["grading"] = {"profile": profile, "thickness_nm": gt, "steps": 10, "keep_period": keep}
+    return d
+
+
+def test_grading_layers_and_bragg_period():
+    from vcsel_sim.structure import graded_periods, _n_ref
+    s = Structure.from_dict(_graded_980(20.0))
+    g = s.stack[0]
+    per = graded_periods(g, s.design_wavelength)
+    assert len(per) == g.repeats
+    lam = s.design_wavelength
+    ot = lambda p: sum(_n_ref(L, lam) * d for (L, d, _) in p)
+    ot0 = sum(_n_ref(L, lam) * L.physical_thickness(lam) for L in g.children)
+    # an interior period keeps its optical thickness (Bragg wavelength unchanged)
+    assert abs(ot(per[1]) - ot0) < 1e-6 * ot0
+    # the grade runs monotonically from x=0 to x=0.9 between GaAs and Al0.90Ga0.10As
+    xs = [L.x for (L, d, lab) in per[1] if "grade GaAs→" in lab]
+    assert len(xs) == 10 and all(b > a for a, b in zip(xs, xs[1:])) and 0 < xs[0] < xs[-1] < 0.9
+    # outer faces of the group stay abrupt: first layer keeps its outer half
+    assert abs(per[0][0][1] - per[1][0][1] - 10.0) < 1e-9
+
+
+def test_grading_raises_threshold_and_survives_save():
+    from vcsel_sim.vrt_write import write_vrt
+    from vcsel_sim.vrt import read_vrt
+    s0 = Structure.from_dict(_graded_980(0.0))
+    a0 = laser.analyze(s0)
+    s = Structure.from_dict(_graded_980(20.0))
+    a = laser.analyze(s)
+    assert a.threshold_gain > a0.threshold_gain * 1.02            # grading lowers the mirror reflectance
+    assert abs(a.wavelength - a0.wavelength) < 1.0                # Bragg period kept: resonance stays put
+    s2 = Structure.from_dict(json.loads(json.dumps(s.to_dict())))
+    assert abs(laser.analyze(s2).threshold_gain - a.threshold_gain) < 1e-9
+    s3 = read_vrt(write_vrt(s))                                   # Vertical gets the explicit layers
+    assert len(s3.flatten()) == len(s.flatten())
+    assert abs(laser.analyze(s3).threshold_gain - a.threshold_gain) / a.threshold_gain < 2e-3
+
+
+def test_sweep_point_matches_full_analysis():
+    d = json.loads(api.template("gaas_980")); d = d.get("design", d)
+    p = json.loads(api.sweep_point(json.dumps(d)))["point"]
+    r = json.loads(api.run_analysis(json.dumps(d)))["results"]
+    for k in ("threshold_gain", "wavelength", "slope_top", "alpha_m", "confinement"):
+        assert abs(p[k] - r[k]) < 1e-9 * max(1.0, abs(r[k]))

@@ -67,7 +67,7 @@
         <li>1. Overview and capabilities</li>
         <li>2. The window</li>
         <li>3. Building a structure</li>
-        <li>4. Analysis tabs</li>
+        <li>4. Analysis tabs (including the parameter sweep)</li>
         <li>5. Files, templates and export</li>
         <li>6. Worked example: a 980 nm InGaAs/GaAs VCSEL</li>
       </ol></li>
@@ -77,7 +77,7 @@
         <li>8. Threshold condition</li>
         <li>9. Gain and loss budget</li>
         <li>10. Cavity length, penetration depth and confinement (course-notes model)</li>
-        <li>11. Mirror reflectance and stopband</li>
+        <li>11. Mirror reflectance, stopband and graded interfaces</li>
         <li>12. Material models</li>
         <li>13. Absorption from doping</li>
         <li>14. Validation against Vertical</li>
@@ -103,7 +103,8 @@
   <li>the standing-wave field |E(z)|² and refractive-index profile through the structure;</li>
   <li>the round-trip gain and loss budget, the internal and mirror losses, the gain enhancement factor Γ<sub>enh</sub>, the longitudinal confinement factor Γ, the effective cavity length, the photon lifetime, the external differential and slope efficiencies (top and bottom), and the cavity optical thickness;</li>
   <li>reflectance, transmission and reflection phase spectra of the top mirror, the bottom mirror and the whole wafer (from the top or through the substrate), with the stopband;</li>
-  <li>stand-alone quarter-wave DBR designs: reflectance at λ<sub>0</sub>, stopband, penetration depth, and the number of pairs needed for a target reflectance;</li>
+  <li>stand-alone quarter-wave DBR designs, abrupt or with graded interfaces: reflectance at λ<sub>0</sub>, stopband, penetration depth, and the number of pairs needed for a target reflectance;</li>
+  <li>parameter sweeps: any of the main results versus one design input, optionally as a family of curves for a second input;</li>
   <li>refractive index n and extinction coefficient k of every material in the database versus wavelength, composition and (for AlGaAs) temperature;</li>
   <li>free-carrier and dopant-related absorption from the doping level, using literature cross-sections (optional, per layer).</li>
 </ul>
@@ -159,14 +160,17 @@
 <div class="tip">Minimum for a threshold calculation: at least one layer with <i>Layer type = active</i>. For the full set of results: one group with role Top DBR and one with role Bottom DBR.</div>
 <h2>3.3 Exit medium and substrate</h2>
 <p>The first and last rows of the stack. Each is a semi-infinite medium with a material or fixed index. Use <i>Air</i> (n = 1) for a real air interface. Older Vertical files sometimes store their top medium with a large imaginary index; on import the program keeps the stored value and warns about it.</p>
-<h2>3.4 Inserting a DBR from the DBR design tab</h2>
+<h2>3.4 Graded DBR interfaces</h2>
+<p>Select a DBR group to open the group editor (Figure 3). Under <i>Graded interfaces</i> choose the profile (<b>linear</b> or <b>bi-parabolic</b>), the grade thickness per interface in nm, the number of sub-layers (steps) and whether to <b>keep the Bragg period</b> (default). Every interface inside the group, including those between periods, is graded; the group's outer faces stay abrupt. A graded group is tagged <i>graded</i> in the stack, and the index profile on the Field &amp; index tab shows the ramps. Grading needs the same alloy model on both sides of an interface (for example two AlGaAs compositions). The method is described in Section 11.1.</p>
+<figure><img src="img/grading.png"><div class="caption">Figure 3. Group editor of the top DBR with 20 nm linear grades; the index profile (right, zoomed to the top 700 nm) shows the ramps between GaAs and Al<sub>0.90</sub>Ga<sub>0.10</sub>As.</div></figure>
+<h2>3.5 Inserting a DBR from the DBR design tab</h2>
 <p>A mirror designed on the DBR design tab can be added with <b>Insert into stack</b>. As <i>Bottom DBR</i> or <i>Top DBR</i> it replaces the stack's existing bottom or top mirror group (or is placed directly above the substrate / below the exit medium if there is none). As a <i>plain group</i> it goes below the selected item. Undo restores the previous stack.</p>
 
 <h1>4. Analysis tabs</h1>
 <h2>4.1 Field &amp; index</h2>
 <p>Plots |E(z)|² at the lasing wavelength and the refractive-index profile. Options: show |E|², n or both; normalize |E|² to the substrate, the exit medium or the peak; measure depth from the top surface or the substrate interface; nm or µm; shade regions (mirrors, cavity, active layers). The <i>Sampling</i> boxes only set how densely the curve is drawn. All integrals in the results are analytic and do not depend on the sampling. While the layer editor is open, the layer or group being edited is marked by a faint blue band on the plot (every repeat of it, for a layer inside a group), so its position in the field and index profile is easy to see. Summary cards above the plot give λ<sub>las</sub>, g<sub>th</sub>, Γg<sub>th</sub>, Γ, Γ<sub>enh</sub>, α<sub>i</sub> and α<sub>m</sub>, the external efficiency (top and bottom), and the peak |E|² and |E|² at the active layers.</p>
 <h2>4.2 Reflectance</h2>
-<figure><img src="img/reflectance.png"><div class="caption">Figure 3. Reflectance tab: top and bottom mirror seen from the cavity, with the stopband table.</div></figure>
+<figure><img src="img/reflectance.png"><div class="caption">Figure 4. Reflectance tab: top and bottom mirror seen from the cavity, with the stopband table.</div></figure>
 <p>Choose the wavelength range, number of points and the spectra to compute:</p>
 <ul>
   <li><b>Top DBR (from cavity)</b>: everything above the cavity, seen from the cavity layer next to the mirror (taken as lossless).</li>
@@ -176,19 +180,24 @@
 <p>Plot R, the phase of r, both, 1 − R on a log scale, or T. The legend is headed by the design name and λ<sub>design</sub> and is placed as described in Section 2.4. The spectra are for the passive, as-grown structure: the active layers carry no gain, so there is no lasing spike. The table gives, for each spectrum, R, phase and T at λ<sub>design</sub>, R<sub>max</sub> and its wavelength, and the <b>stopband</b>: the continuous band with R ≥ 99% (the threshold can be changed) around λ<sub>design</sub>, with its width and center. For whole-wafer spectra the narrow cavity dip is bridged.</p>
 <div class="note">The top of a DBR stopband is very flat, so λ at R<sub>max</sub> can be several nm from λ<sub>design</sub> while R differs by only ~10⁻⁴. This is physical when the two mirror materials absorb differently (Section 11). Use the stopband center to judge where a mirror is centered.</div>
 <h2>4.3 DBR design</h2>
-<figure><img src="img/dbr.png"><div class="caption">Figure 4. DBR design tab: 20-pair Al<sub>0.90</sub>Ga<sub>0.10</sub>As/GaAs mirror seen from GaAs.</div></figure>
-<p>Designs a quarter-wave mirror on its own. Set λ<sub>0</sub>, the number of pairs, the incident medium, the first layer (next to the incident medium), the second layer and the exit medium, each with its composition (“x =”, and “y =” for quaternaries such as InGaAsP with any x, y). <b>⇅ Swap layers</b> exchanges the two layers. For a mirror seen from a GaAs cavity, use GaAs as the incident medium and put the low-index layer first.</p>
+<figure><img src="img/dbr.png"><div class="caption">Figure 5. DBR design tab: 20-pair Al<sub>0.90</sub>Ga<sub>0.10</sub>As/GaAs mirror seen from GaAs.</div></figure>
+<p>Designs a quarter-wave mirror on its own. Set λ<sub>0</sub>, the number of pairs, the grading (abrupt, linear or bi-parabolic, with its thickness), the incident medium, the first layer (next to the incident medium), the second layer and the exit medium, each with its composition (“x =”, and “y =” for quaternaries such as InGaAsP with any x, y). <b>⇅ Swap layers</b> exchanges the two layers. For a mirror seen from a GaAs cavity, use GaAs as the incident medium and put the low-index layer first.</p>
 <p>The cards give R at λ<sub>0</sub> (transfer matrix and the analytic formula), 1 − R, the stopband (R ≥ 99%, next to the infinite-stack width), the indices and quarter-wave thicknesses, the period and total thickness, and the penetration depth (Coldren &amp; Corzine A7.25 and the Ch. 3 approximations). Below are the full spectrum (its legend, which can be turned off, names the design, e.g. “20-pair Al<sub>0.90</sub>Ga<sub>0.10</sub>As/GaAs DBR, λ<sub>0</sub> = 980 nm, from GaAs, exit GaAs”), a table of pairs needed for target reflectances, a drawing of the mirror, and a plot of R (or 1 − R, log) versus the number of pairs. If the incident medium absorbs strongly in part of the range (GaAs below about 870 nm), the spectrum is left blank there and a note under the plot gives the wavelength. The mirror can be exported as a spectrum CSV, a layer CSV, saved as a design, or inserted into the stack.</p>
-<h2>4.4 Results</h2>
-<figure><img src="img/results.png"><div class="caption">Figure 5. Results tab.</div></figure>
+<h2>4.4 Sweep</h2>
+<figure><img src="img/sweep.png"><div class="caption">Figure 6. Sweep tab: threshold gain (solid, left axis) and top slope efficiency (dotted, right axis) versus the number of top-DBR pairs, for three bottom-DBR pair counts.</div></figure>
+<p>Varies one design input over a range and runs the complete threshold analysis at every point, to find good designs quickly. The inputs are: the repeats of a group (DBR pairs, number of wells); a layer's thickness (in its own unit, nm or waves), composition x or y, manual absorption α or doping (swept on a log scale); the thickness scale of one group or of the whole stack in percent (a growth-rate error); the grading thickness of a DBR group; the temperature; and the design wavelength. A layer inside a group changes in every repeat.</p>
+<p><b>Curves for</b> adds an optional second input with up to eight values, one curve each. <b>Plot</b> chooses the result on the left axis and, optionally, a second one on the right axis (dotted): threshold material or modal gain, λ<sub>las</sub>, slope and external efficiencies (top, bottom, total), α<sub>i</sub>, α<sub>m</sub> (total, top, bottom), the passive reflectance of each DBR (or 1 − R on a log axis), Γ, Γ<sub>enh</sub>, photon lifetime, effective cavity length, cavity optical thickness, the computed penetration depths and the total thickness. A dashed line marks the current design. The table lists the main results at every point and <b>CSV</b> exports all of them.</p>
+<p>The lasing mode is followed continuously: the sweep starts at the point nearest the current design and walks outwards in both directions, starting the solver at the previous point's wavelength, so it stays on the same longitudinal mode. Points that do not converge are left blank and counted under the plot. Clicking a point shows its values and offers <b>Apply to design</b>, which sets the input(s) to that point (Undo reverts it). Round-trip conversion and η<sub>i</sub> follow the Results tab settings. Each point takes about as long as one analysis; <b>Stop</b> ends a long sweep early.</p>
+<h2>4.5 Results</h2>
+<figure><img src="img/results.png"><div class="caption">Figure 7. Results tab.</div></figure>
 <p>The full results table, grouped as: operating point (λ<sub>las</sub>, g<sub>th</sub>, Γg<sub>th</sub>, photon energy, photon lifetime); round-trip budget; losses per unit length (α<sub>i</sub>, α<sub>m</sub> and their top/bottom parts, effective R); confinement (active thickness, Γ<sub>enh</sub>, Γ, effective length, cavity length and cavity optical thickness); mirrors at λ<sub>las</sub> (periods, reflectance from the cavity and the computed penetration depth of each DBR, and the effective length they give); efficiency; standing-wave field values; internal loss by region; the transfer matrix at λ<sub>las</sub>; and, at the bottom, a collapsed <i>hand-calculation cross-check</i> section with the course-notes penetration-depth model. Definitions are in Part II.</p>
 <p>Options: <b>Round trip → per length</b> chooses the exact (default) or linear (as Vertical) conversion from round-trip fractions to per-length losses (Section 9.3). <b>Show Vertical-convention column</b> adds Vertical's numerical rules for cross-checking old results (Section 14). <b>Internal efficiency η<sub>i</sub></b> enters the efficiency results.</p>
-<h2>4.5 Layer table</h2>
+<h2>4.6 Layer table</h2>
 <p>Every layer with repeats expanded, top to bottom: material, composition (x, and y when a quaternary is used), type, thickness, depth, n, k, α, optical thickness n·d/λ, band gap and doping, at λ<sub>design</sub>. Exportable as CSV.</p>
-<h2>4.6 Materials</h2>
-<figure><img src="img/materials.png"><div class="caption">Figure 6. Materials tab: Al<sub>x</sub>Ga<sub>1−x</sub>As index and extinction coefficient, with n, k at a typed wavelength.</div></figure>
+<h2>4.7 Materials</h2>
+<figure><img src="img/materials.png"><div class="caption">Figure 8. Materials tab: Al<sub>x</sub>Ga<sub>1−x</sub>As index and extinction coefficient, with n, k at a typed wavelength.</div></figure>
 <p>Plots n and k of any material versus wavelength for a chosen composition, marks the band gap, and gives n, k and α = 4πk/λ at a wavelength typed in the <i>n, k at λ</i> box. The table lists the model and reference for every material.</p>
-<h2>4.7 Help &amp; theory</h2>
+<h2>4.8 Help &amp; theory</h2>
 <p>A short summary of operation and method inside the program. This manual is the full reference.</p>
 
 <h1>5. Files, templates and export</h1>
@@ -262,6 +271,11 @@ a = analyze(s); print(a.threshold_gain, a.wavelength)</p>
 <p>The <b>stopband</b> is the continuous band around λ<sub>design</sub> (or around the peak if R(λ<sub>design</sub>) is below the threshold) where R ≥ 99%, the usual VCSEL convention (top output mirrors need R ≈ 99.0–99.5%, bottom mirrors above 99.9%). Edges are interpolated between grid points. It is zero until the mirror reaches the threshold and widens with more pairs toward the infinite-stack width</p>
 <span class="eq">Δλ<sub>∞</sub> = (4λ<sub>0</sub>/π) arcsin[(n<sub>2</sub> − n<sub>1</sub>)/(n<sub>2</sub> + n<sub>1</sub>)]</span>
 <p>The half-of-peak (−3 dB) width, used earlier, behaves the opposite way: it shrinks with more pairs because a weak mirror has a broad, low peak. The analytic reflectance at λ<sub>0</sub> on the DBR tab is R = [(n<sub>0</sub> − Y)/(n<sub>0</sub> + Y)]², Y = (n<sub>1</sub>/n<sub>2</sub>)<sup>2m</sup> n<sub>exit</sub>.</p>
+<h2>11.1 Graded interfaces</h2>
+<p>In a graded group every interface inside the group (between the layers of a period and between consecutive periods) is replaced by a composition ramp of total thickness t<sub>g</sub>, centred on the original interface, so each neighbouring layer gives up t<sub>g</sub>/2. The outer faces of the group stay abrupt. The ramp is divided into s equal sub-layers; sub-layer j (centre at u = (j − ½)/s) has composition</p>
+<span class="eq">x = x<sub>A</sub> + (x<sub>B</sub> − x<sub>A</sub>) f(u),&nbsp;&nbsp; linear: f = u,&nbsp;&nbsp; bi-parabolic: f = 2u² (u &lt; ½), 1 − 2(1 − u)² (u ≥ ½)</span>
+<p>(y is graded the same way for quaternaries), with its index from the material model at that composition, so the transfer matrix sees the actual staircase. Each sub-layer takes the doping, absorption and layer type of the nearer original layer. With <i>Keep Bragg period</i> the uniform parts of all layers are multiplied by one factor chosen so that a full interior period has the same optical thickness Σ n d at λ<sub>design</sub> as without grading, which keeps the Bragg wavelength in place; without it the physical thicknesses are kept and the stopband moves slightly. Ten sub-layers per grade (2 nm for a 20 nm grade) are enough for the reflectance at the Bragg wavelength; the step size only needs to be small compared with λ/n.</p>
+<p>Grading reduces the effective index contrast: for the 980 nm template with 20 nm linear grades in both mirrors, the top mirror's passive reflectance falls from 0.99786 to 0.99758 and g<sub>th</sub> rises from 444 to 494 cm⁻¹ (bi-parabolic grades of the same thickness: 468 cm⁻¹). A graded mirror therefore needs more pairs for the same reflectance; the sweep tab shows the trade-off directly. The analytic reflectance, the infinite-stack stopband and the Coldren penetration-depth formulas on the DBR design tab and in the hand-calculation section assume abrupt layers. The transfer-matrix values and the phase penetration depths include the grading. Grading is a layer profile only: the electrical benefit it is used for (lower heterobarriers and series resistance in p-DBRs) is outside this optical model. A graded group written to an old Vertical file is stored as explicit layers (first period, interior periods, last period).</p>
 <p><b>Off-center R<sub>max</sub>.</b> Inside the stopband the standing wave sits mainly in the low-index layers on the short-wavelength side and in the high-index layers on the long-wavelength side. If one of the two materials absorbs more (for example through doping), the absorption, and so 1 − R, is lowest on the side where the field avoids that material, and R<sub>max</sub> moves several nm off λ<sub>0</sub>. Because the stopband top is flat, R changes by only ~10⁻⁴. The laser locks to the cavity resonance, not to R<sub>max</sub>.</p>
 
 <h1>12. Material models</h1>
@@ -308,7 +322,7 @@ a = analyze(s); print(a.threshold_gain, a.wavelength)</p>
   <li><b>Absorption</b> comes from the material models, the manual α of each layer, or the doping model. Near-edge band-tail absorption and temperature dependence of absorption are not included.</li>
   <li><b>Temperature</b> affects only the Gehrsitz AlGaAs index. Thermal expansion and the temperature dependence of other materials are not modelled.</li>
   <li><b>Band-edge regions.</b> The Afromowitz AlGaAs model exaggerates features right at the band gap (Section 12.1).</li>
-  <li><b>Interfaces</b> are abrupt; graded layers must be approximated by thin steps.</li>
+  <li><b>Interfaces</b> are abrupt except inside graded DBR groups, where the grade is a staircase of thin steps (Section 11.1). Grading at the outer faces of a mirror, or in other parts of the structure, must be built from thin layers by hand.</li>
   <li><b>Metals and very thin layers</b> use bulk optical constants.</li>
 </ul>
 
