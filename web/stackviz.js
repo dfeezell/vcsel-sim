@@ -336,7 +336,19 @@ function addPlotBar(el) {
   if (!el || el.previousElementSibling?.classList.contains("plot-bar")) return;
   const bar = document.createElement("div"); bar.className = "plot-bar";
   // double-click resets through the same path as the Reset button (Plotly's own autorange reset is off)
-  el.addEventListener("dblclick", () => bar.querySelector('[data-pb="reset"]')?.click());
+  // Plotly moves the mouse-up onto a cover element during drags, so the browser's own dblclick never reaches
+  // the plot; detect two quick presses in the same spot on the plot area ourselves
+  let lastDown = null;
+  el.addEventListener("mousedown", (e) => {
+    if (e.button !== 0 || !e.target.closest(".nsewdrag, .drag")) return;
+    const t = performance.now();
+    if (lastDown && t - lastDown.t < 450 && Math.hypot(e.clientX - lastDown.x, e.clientY - lastDown.y) < 6) {
+      lastDown = null;
+      // run after Plotly finishes handling this press so its (empty) zoom box does not undo the reset
+      const go = () => { document.removeEventListener("mouseup", go, true); setTimeout(() => bar.querySelector('[data-pb="reset"]')?.click(), 30); };
+      document.addEventListener("mouseup", go, true);
+    } else lastDown = { t, x: e.clientX, y: e.clientY };
+  }, true);
   bar.innerHTML = PLOT_TOOLS.map(([k, l, t]) => `<button class="pb" data-pb="${k}" title="${t}">${l}</button>`).join("");
   el.parentNode.insertBefore(bar, el);
   const zoomBy = (f) => {
