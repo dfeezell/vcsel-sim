@@ -272,6 +272,16 @@ function swCurveName(D, cv) {
   const nm = D.P2.k === "repeats" ? `${tg.trim()} ×${cv.v2}` : `${swShort(D.P2)}${tg} = ${fmt(cv.v2, 4)}${D.u2 && D.u2 !== "%" ? " " + D.u2 : D.u2}`;
   return nm;
 }
+// An output that does not change over the sweep (to 1 ppm, e.g. a passive mirror R when only the wells change)
+// would be autoscaled to its numerical noise, with 9-digit tick labels. Show it flat on a sensible range instead.
+function swFlat(traces, axis) {
+  const v = traces.filter((t) => (t.yaxis || "y") === axis).flatMap((t) => t.y).filter((y) => Number.isFinite(y));
+  if (v.length < 2) return null;
+  const lo = Math.min(...v), hi = Math.max(...v), m = (lo + hi) / 2;
+  if (hi - lo > Math.max(1e-6 * Math.abs(m), 1e-12)) return null;
+  const d = Math.abs(m) > 0 ? Math.abs(m) * 0.002 : 1;
+  return { m, range: [m - d, m + d] };
+}
 function swPlot() {
   const D = SW.data, el = $("#plot-sweep"); if (!D) return;
   const y1 = $("#sw-y1").value, y2 = $("#sw-y2").value;
@@ -300,6 +310,15 @@ function swPlot() {
     annotations: [{ x: cur, yref: "paper", y: 1, yanchor: "bottom", text: "design", showarrow: false, font: { size: 10.5, color: "#868e96" } }],
   };
   if (y2) layout.yaxis2 = { ...ax, mirror: false, overlaying: "y", side: "right", title: { text: swOutLabel(y2) }, type: SW_LOGGY.has(y2) ? "log" : "linear" };
+  // long tick labels push the margin out instead of running into the axis title
+  for (const a of ["yaxis", "yaxis2"]) if (layout[a]) { layout[a].automargin = true; layout[a].title.standoff = 10; }
+  [["yaxis", "y", y1], ["yaxis2", "y2", y2]].forEach(([a, id, k]) => {
+    if (!k || !layout[a] || layout[a].type === "log") return;
+    const f = swFlat(traces, id); if (!f) return;
+    layout[a].range = f.range; layout[a].autorange = false;
+    layout.annotations.push({ xref: "paper", x: id === "y" ? 0.01 : 0.99, xanchor: id === "y" ? "left" : "right", y: f.m, yref: id, yanchor: "bottom",
+      text: `constant: ${fmt(f.m, 7)}${id === "y2" ? " (right axis)" : ""}`, showarrow: false, font: { size: 11, color: "#495057" } });
+  });
   el._autoLegend = true;
   Plotly.react(el, traces, layout, PLOT_CONFIG).then(() => {
     if (!el._swClick) { el._swClick = true; el.on("plotly_click", (ev) => { const cd = ev.points?.[0]?.customdata; if (cd) swPick(cd[0], cd[1]); }); }
