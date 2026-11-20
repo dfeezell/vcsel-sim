@@ -176,7 +176,7 @@ function swDefaults(which) {
 }
 function swCurrentLine() {
   const P = swParam(""); const path = swPath("");
-  $("#sw-now").innerHTML = P && (!P.target || path) ? `now ${fmt(swGet(S.design, P, path), 6)} ${swUnit(P, path)}` : "";
+  $("#sw-now").innerHTML = P && (!P.target || path) ? `(current design: ${fmt(swGet(S.design, P, path), 6)}${swUnit(P, path) ? " " + swUnit(P, path) : ""})` : "";
 }
 function swXs() {
   const P = swParam(""); const a = parseFloat($("#sw-from").value), b = parseFloat($("#sw-to").value);
@@ -360,6 +360,10 @@ function initSweepTab() {
   $("#tab-sweep .legend-tog").addEventListener("change", swPlot);
   $("#sw-run").addEventListener("click", swRun);
   $("#sw-retune").addEventListener("change", swTuneList);
+  // integer inputs (repeats): the number of points is simply the number of whole values in the range
+  const intPoints = () => { const P = swParam(""); const a = parseFloat($("#sw-from").value), b = parseFloat($("#sw-to").value);
+    if (P?.int && Number.isFinite(a) && Number.isFinite(b)) $("#sw-n").value = Math.min(401, Math.abs(Math.round(b) - Math.round(a)) + 1); };
+  ["#sw-from", "#sw-to"].forEach((s) => $(s).addEventListener("input", intPoints));
   $("#sw-tune-list").addEventListener("change", (e) => {
     const k = e.target.dataset.k; if (!k) return;
     if (e.target.checked) SW.tune.add(k); else SW.tune.delete(k);
