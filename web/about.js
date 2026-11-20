@@ -89,8 +89,24 @@ Objects left in Vertical's “Extra” area are ignored. Indices are kept fixed 
 <h2>Temperature</h2>
 <p>The <b>T</b> box in the toolbar sets the structure temperature. It is used by temperature-dependent materials, currently <b>AlGaAs (Gehrsitz, temperature)</b>: Gehrsitz et al., J. Appl. Phys. 87, 7825 (2000), accurate to about 10<sup>−3</sup> below the direct gap, with dn/dT of about 2.6–3.5×10<sup>−4</sup>/K for GaAs and 1.3×10<sup>−4</sup>/K for AlAs near 1 µm (Talghader &amp; Smith, APL 66, 335 (1995), measured 2.67 and 1.43×10<sup>−4</sup>/K). Build the DBRs and cavity from that material and change T to see the resonance tune (about 0.06 nm/K for a 980 nm GaAs/AlGaAs cavity). Layers given in waves are converted to nm at 23 °C, so they stay physically fixed as T changes; thermal expansion (about 6×10<sup>−6</sup>/K) is not included. Other materials ignore T. The model is blank at and above the GaAs gap, so keep absorbing GaAs contact or substrate layers on the Afromowitz AlGaAs model.</p>
 
+<h2>Absorption from doping (optional)</h2>
+<p>For n-type and p-type layers, <b>Absorption α → From doping</b> replaces the typed α with free-carrier absorption
+α = σ·N, where N is the layer's doping and σ the cross-section of electrons (n-type) or holes (p-type) for the material family at the
+wavelength. Manual α stays the default. Enter your own σ in the layer editor to override the literature value. Active layers always use the manual α.</p>
+<ul>
+<li><b>AlGaAs, InGaAs</b>: σ<sub>n</sub> = 3×10⁻¹⁸ cm², σ<sub>p</sub> = 7×10⁻¹⁸ cm² (H. C. Casey, Jr., J. Appl. Phys. 49, 3684 (1978), eq. 9, GaAs near the gap at room temperature, also applied to AlGaAs).
+Other published pairs are 5 / 11 (see Debernardi et al., IEEE JSTQE 25, 1700914 (2019)).</li>
+<li><b>InP, InGaAsP, InAlGaAs</b>: holes (intervalence band absorption) 14×10⁻¹⁸ cm² at 1.3 µm and 20×10⁻¹⁸ cm² at 1.5 µm, linear in between
+(H. C. Casey, Jr. and P. L. Carter, Appl. Phys. Lett. 44, 82 (1984); reproduced by J. Taylor and V. Tolstikhin, J. Appl. Phys. 87, 1054 (2000)).
+Electrons use 4×10⁻¹⁸ cm² (n-GaAs at 1.5 µm, D. C. Look et al., Appl. Phys. Lett. 65, 2188 (1994)) until an InP-specific value is added.</li>
+<li><b>GaN, AlGaN, InGaN, AlN</b>: electrons 0.6×10⁻¹⁸ cm², measured at 450 nm by S. Pimputkar et al., J. Cryst. Growth 432, 49 (2015), in agreement with the
+first-principles phonon-assisted absorption of E. Kioupakis et al., Phys. Rev. B 81, 241201(R) (2010). For Mg-doped layers most of the loss comes from holes bound
+to Mg (Kioupakis et al.: about 12 cm⁻¹ at [Mg] = 2×10¹⁹ cm⁻³), so enter the Mg concentration as the doping; σ = 0.6×10⁻¹⁸ cm² per Mg atom (interim).</li>
+<li><b>AlGaInP</b>: estimate only, the GaAs values scaled by (λ/870 nm)².</li></ul>
+<p>Doping in the active region and injected carriers are not included.</p>
+
 <h2>Planned</h2>
 <ul><li>Phase 2: apertures (oxide / air), effective-index lateral modes, diffraction and scattering loss, 2D modal gain.</li>
 <li>User-defined gain spectra g(λ, N) (e.g. from Coldren &amp; Corzine or measurements). The engine already keeps the gain per active layer separate, so this can be added.</li>
-<li>More temperature-dependent materials; doping-dependent free-carrier absorption.</li></ul>
+<li>More temperature-dependent materials; refine the nitride and InP free-carrier cross-sections (wavelength dependence, near-edge absorption of doped GaN).</li></ul>
 `;

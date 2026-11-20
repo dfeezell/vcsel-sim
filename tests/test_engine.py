@@ -193,3 +193,20 @@ def test_thermal_tuning_gehrsitz():
         lam.append(json.loads(api.run_analysis(json.dumps(d)))["results"]["wavelength"])
     # GaAs/AlGaAs VCSEL resonances move about 0.06-0.07 nm/K
     assert 0.05 < (lam[1] - lam[0]) / 50 < 0.08
+
+
+def test_absorption_from_doping():
+    from vcsel_sim import fca
+    from vcsel_sim.structure import Layer
+    L = Layer(material="AlGaAs", x=0.9, layer_type="p-type", doping=1e18, absorption=11.5, absorption_mode="doping")
+    assert abs(float(L.alpha(980.0)) - 7.0) < 1e-9                       # Casey 1978: 7e-18 p
+    L.layer_type = "n-type"
+    assert abs(float(L.alpha(980.0)) - 3.0) < 1e-9
+    L.sigma_fc = 5e-18                                                     # user override
+    assert abs(float(L.alpha(980.0)) - 5.0) < 1e-9
+    L.absorption_mode = "manual"
+    assert float(L.alpha(980.0)) == 11.5
+    s = fca.sigma("InP", "p", [1300.0, 1500.0])                            # Casey & Carter 1984
+    assert abs(s[0] - 14e-18) < 1e-30 and abs(s[1] - 20e-18) < 1e-30
+    act = Layer(material="InGaAs", layer_type="active", doping=1e18, absorption=2.0, absorption_mode="doping")
+    assert float(act.alpha(980.0)) == 2.0                                  # active layers stay manual

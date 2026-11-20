@@ -18,7 +18,7 @@ import copy
 
 import numpy as np
 
-from . import materials
+from . import materials, fca
 
 # Layer "type" values (mirrors Vertical's Layer Type list, plus dielectric types)
 LAYER_TYPES = ["undoped", "n-type", "p-type", "active", "dielectric", "oxide", "metal", "other"]
@@ -40,7 +40,9 @@ class Layer:
     n_imag: float = 0.0               # extinction coefficient kappa (>0 = loss), added to model value
     absorption: float = 0.0           # power absorption coefficient alpha in cm^-1 (>0 loss, <0 gain)
     layer_type: str = "undoped"       # see LAYER_TYPES; "active" layers receive the threshold gain
-    doping: float = 0.0               # cm^-3 (magnitude)
+    doping: float = 0.0               # cm^-3 (magnitude); for Mg-doped nitrides the Mg concentration
+    absorption_mode: str = "manual"   # "manual" -> `absorption`; "doping" -> alpha = sigma * doping (see fca.py)
+    sigma_fc: Optional[float] = None  # cm^2, overrides the literature cross-section in "doping" mode
     apertured: bool = False           # reserved for the 2D (aperture) phase
     marked: bool = False              # thickness is adjusted by "Tune cavity" (Vertical's Marks / Force Wave)
     color: Optional[str] = None
@@ -63,10 +65,17 @@ class Layer:
             n = np.full_like(lam, self.n_real, dtype=complex) + 1j * self.n_imag
         else:
             n = materials.index(self.material, lam, self.x, self.y) + 1j * self.n_imag
-        alpha = self.absorption - (gain_cm if self.is_active else 0.0)
+        alpha = self.alpha(lam) - (gain_cm if self.is_active else 0.0)
         if np.any(alpha != 0):
             n = n + 1j * alpha * 1e-7 * lam / (4 * np.pi)   # alpha [cm^-1] -> [nm^-1]
         return n
+
+    def alpha(self, wavelength_nm):
+        """Background power absorption coefficient (cm^-1) at wavelength(s): the manual value, or the
+        doping-induced free-carrier absorption when absorption_mode == "doping" (active layers stay manual)."""
+        if self.absorption_mode == "doping" and not self.is_active:
+            return fca.alpha(self, wavelength_nm)
+        return np.zeros_like(np.asarray(wavelength_nm, dtype=float)) + float(self.absorption or 0.0)
 
     def physical_thickness(self, design_wavelength_nm) -> float:
         """Thickness in nm. 'waves' means optical thickness n*d in units of the design wavelength."""

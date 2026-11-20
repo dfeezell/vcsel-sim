@@ -10,7 +10,7 @@ import math
 
 import numpy as np
 
-from . import materials, laser, vrt, export, templates, cavity
+from . import materials, laser, vrt, export, templates, cavity, fca
 from .structure import Structure
 
 
@@ -202,7 +202,13 @@ def node_info(design_json):
                     walk(it.children)
                 else:
                     n = complex(np.atleast_1d(it.index(lam))[0])
+                    fam = fca.family(it.material)
+                    car = fca.carrier_of(it.layer_type)
+                    sg = fca.sigma(it.material, car, lam) if (fam and car) else None
                     nodes.append({"d": it.physical_thickness(lam), "n": n.real, "k": n.imag,
+                                  "alpha": float(np.atleast_1d(it.alpha(lam))[0]),
+                                  "fca": {"family": fam, "carrier": car, "ref": fca.REFS.get(fam),
+                                          "sigma": float(np.atleast_1d(sg)[0]) if sg is not None else None},
                                   "eg": materials.bandgap(it.material, it.x, it.y) if it.index_mode == "model" else None})
         walk(s.stack)
         flat = s.flatten()

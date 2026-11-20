@@ -63,7 +63,7 @@ class _Writer:
         if not np.isfinite(n.real):
             raise ValueError(f"layer '{L.name}': index undefined at {self.lam} nm (outside the material model's range)")
         active = L.layer_type == "active"
-        a = 0.0 if active else float(L.absorption or 0.0)    # cm^-1
+        a = 0.0 if active else float(np.atleast_1d(L.alpha(self.lam))[0])    # cm^-1
         dop = float(L.doping or 0.0) / 1e18
         sgn = -1.0 if L.layer_type == "n-type" else (1.0 if L.layer_type == "p-type" else 0.0)
         d = float(L.physical_thickness(self.lam)) if (L.thickness or 0) > 0 else 0.0

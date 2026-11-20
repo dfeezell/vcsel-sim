@@ -4,7 +4,7 @@
  */
 "use strict";
 
-const PY_FILES = ["__init__.py", "_tables.py", "materials.py", "structure.py", "tmm.py", "laser.py", "cavity.py",
+const PY_FILES = ["__init__.py", "_tables.py", "materials.py", "structure.py", "tmm.py", "laser.py", "cavity.py", "fca.py",
   "vrt.py", "vrt_write.py", "export.py", "templates.py", "api.py"];
 
 const LAYER_TYPES = [["undoped", "undoped"], ["n-type", "n-type"], ["p-type", "p-type"], ["active", "active (gain)"],
@@ -80,7 +80,7 @@ async function boot() {
 /* ------------------------------------------------------------------ design model helpers */
 function newLayer(over = {}) {
   return Object.assign({ kind: "layer", name: "GaAs", material: "AlGaAs", x: 0, y: 0, thickness: 0.25, thickness_unit: "waves",
-    index_mode: "model", n_real: 3.5, n_imag: 0, absorption: 0, layer_type: "undoped", doping: 0,
+    index_mode: "model", n_real: 3.5, n_imag: 0, absorption: 0, absorption_mode: "manual", sigma_fc: null, layer_type: "undoped", doping: 0,
     apertured: false, marked: false, color: null }, over);
 }
 function newGroup(over = {}) {
@@ -364,6 +364,8 @@ function renderProps() {
     $("#props-title").textContent = isBoundary ? (S.sel[0] === "top" ? "Exit medium (top, semi-infinite)" : "Substrate (bottom, semi-infinite)") : "Layer";
     const m = S.matByKey[it.material] || {};
     const ni = nodeValue(S.sel);
+    const canFca = !isBoundary && (it.layer_type === "n-type" || it.layer_type === "p-type");
+    const useFca = canFca && it.absorption_mode === "doping";
     el.innerHTML = `<div class="form">
       <label>Name</label><input type="text" data-f="name" value="${esc(it.name)}">
       <label>Material</label><select data-f="material">${matOptions(it.material)}</select>
@@ -373,12 +375,15 @@ function renderProps() {
       ${it.index_mode === "fixed" ? `<label>n (real)</label><input type="number" step="0.0001" data-f="n_real" value="${it.n_real}">` :
         `<label>n at λ<sub>design</sub></label><div class="hint">${ni ? `${fmt(ni.n, 6)} + ${fmt(ni.k, 3)} i` : "—"}</div>`}
       <label>k (added)</label><div class="pair"><input type="number" step="0.0001" data-f="n_imag" value="${it.n_imag}"><span class="hint">extinction coeff., &gt;0 = loss</span></div>
-      <label>Absorption α</label><div class="pair"><input type="number" step="0.1" data-f="absorption" value="${it.absorption}"><span class="hint">cm⁻¹ (free-carrier etc.; ${it.layer_type === "active" ? "background loss — threshold gain is added on top" : "&lt;0 = gain"})</span></div>
       ${isBoundary ? "" : `<label>Thickness</label><div class="pair"><input type="number" step="any" data-f="thickness" value="${it.thickness}">
         <div class="seg" data-seg="thickness_unit"><button data-v="nm" class="${it.thickness_unit === "nm" ? "on" : ""}">nm</button><button data-v="waves" class="${it.thickness_unit === "waves" ? "on" : ""}">waves</button></div></div>
         <label></label><div class="hint">${ni ? `= ${fmt(ni.d, 6)} nm physical, ${fmt(ni.n * ni.d / S.design.design_wavelength, 5)} λ optical` : ""}</div>`}
       <label>Layer type</label><select data-f="layer_type">${LAYER_TYPES.map(([v, l]) => `<option value="${v}" ${v === it.layer_type ? "selected" : ""}>${l}</option>`).join("")}</select>
-      <label>Doping</label><div class="pair"><input type="text" inputmode="decimal" data-f="doping" data-num="1" style="width:110px" value="${it.doping ? (+it.doping).toExponential(2).replace("e+", "e") : 0}"><span class="hint">cm⁻³ (recorded; absorption is set above)</span></div>
+      <label>Doping</label><div class="pair"><input type="text" inputmode="decimal" data-f="doping" data-num="1" style="width:110px" value="${it.doping ? (+it.doping).toExponential(2).replace("e+", "e") : 0}"><span class="hint">cm⁻³${useFca ? (ni?.fca?.family === "N" && it.layer_type === "p-type" ? " — Mg concentration (absorption scales with Mg, not holes)" : "") : (canFca ? " (sets α only with “From doping” below)" : " (recorded only)")}</span></div>
+      ${canFca ? `<label>Absorption α</label><div class="seg" data-seg="absorption_mode"><button data-v="manual" class="${useFca ? "" : "on"}">Manual</button><button data-v="doping" class="${useFca ? "on" : ""}">From doping</button></div>` : ""}
+      ${useFca ? `<label>σ (${it.layer_type === "p-type" ? "holes" : "electrons"})</label><div class="pair"><input type="text" inputmode="decimal" data-f="sigma_fc" style="width:110px" placeholder="${ni?.fca?.sigma ? (+ni.fca.sigma).toExponential(2).replace("e+", "e") : "none"}" value="${it.sigma_fc ? (+it.sigma_fc).toExponential(2).replace("e+", "e") : ""}"><span class="hint">cm² (blank = literature value)</span></div>
+      <label></label><div class="hint">α = σ·N = <b>${ni ? fmt(ni.alpha, 4) : "—"}</b> cm⁻¹ at λ<sub>design</sub>${ni?.fca?.ref ? `<br>${esc(ni.fca.ref)}` : (it.sigma_fc ? "" : "<br>No literature model for this material; enter σ.")}</div>` :
+        `<label>${canFca ? "" : "Absorption α"}</label><div class="pair"><input type="number" step="0.1" data-f="absorption" value="${it.absorption}"><span class="hint">cm⁻¹ (free-carrier etc.; ${it.layer_type === "active" ? "background loss — threshold gain is added on top" : "&lt;0 = gain"})</span></div>`}
       ${isBoundary ? "" : `<label>Marked</label><div class="pair"><input type="checkbox" data-f="marked" ${it.marked ? "checked" : ""}><span class="hint">thickness adjusted by “Tune cavity”</span></div>
       <label>Apertured</label><div class="pair"><input type="checkbox" data-f="apertured" ${it.apertured ? "checked" : ""} disabled><span class="hint">phase 2</span></div>`}
       ${m.reference ? `<div class="full hint">Model: ${esc(m.reference)}${m.notes ? " — " + esc(m.notes) : ""}</div>` : ""}
@@ -400,6 +405,7 @@ $("#props").addEventListener("change", (e) => {
   const it = getAt(S.sel);
   let v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
   if (e.target.dataset.num) v = Math.abs(parseFloat(v)) || 0;
+  if (f === "sigma_fc") { const t = String(v).trim(); v = t === "" ? null : (Math.abs(parseFloat(t)) || null); }
   if (e.target.type === "number") v = f === "repeats" ? Math.max(0, parseInt(v) || 0) : (parseFloat(v) || 0);
   if (f === "material" && v === "Generic" && it.index_mode !== "fixed") {   // keep the current index as the fixed value
     const ni = nodeValue(S.sel); it.index_mode = "fixed"; if (ni) it.n_real = +ni.n.toFixed(6);   // k stays the "added" k; absorption α is kept separately

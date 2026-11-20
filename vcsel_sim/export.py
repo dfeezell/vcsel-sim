@@ -21,7 +21,7 @@ def layer_rows(s: Structure, wavelength=None):
         rows.append({
             "index": i + 1, "path": f.path, "name": L.name, "material": L.material, "x": L.x, "y": L.y,
             "type": L.layer_type, "doping_cm3": L.doping, "thickness_nm": d, "z_top_nm": z, "z_bottom_nm": z + d,
-            "n": n.real, "k": n.imag, "absorption_cm": L.absorption,
+            "n": n.real, "k": n.imag, "absorption_cm": float(np.atleast_1d(L.alpha(lam))[0]),
             "optical_thickness_waves": n.real * d / lam, "group_role": f.group_role,
             "bandgap_eV": materials.bandgap(L.material, L.x, L.y) if L.index_mode == "model" else None,
         })
