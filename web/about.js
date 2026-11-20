@@ -96,14 +96,19 @@ wavelength. Manual α stays the default. Enter your own σ in the layer editor t
 <ul>
 <li><b>AlGaAs, InGaAs</b>: σ<sub>n</sub> = 3×10⁻¹⁸ cm², σ<sub>p</sub> = 7×10⁻¹⁸ cm² (H. C. Casey, Jr., J. Appl. Phys. 49, 3684 (1978), eq. 9, GaAs near the gap at room temperature, also applied to AlGaAs).
 Other published pairs are 5 / 11 (see Debernardi et al., IEEE JSTQE 25, 1700914 (2019)).</li>
-<li><b>InP, InGaAsP, InAlGaAs</b>: holes (intervalence band absorption) 14×10⁻¹⁸ cm² at 1.3 µm and 20×10⁻¹⁸ cm² at 1.5 µm, linear in between
-(H. C. Casey, Jr. and P. L. Carter, Appl. Phys. Lett. 44, 82 (1984); reproduced by J. Taylor and V. Tolstikhin, J. Appl. Phys. 87, 1054 (2000)).
+<li><b>InP, InGaAsP, InAlGaAs</b>: holes (intervalence band absorption) 14×10⁻¹⁸ cm² at 1.3 µm and 20×10⁻¹⁸ cm² at 1.5 µm
+(H. C. Casey, Jr. and P. L. Carter, Appl. Phys. Lett. 44, 82 (1984)) and 25×10⁻¹⁸ cm² at 1.6 µm (C. H. Henry et al., IEEE J. Quantum Electron. QE-19, 947 (1983), who measured the same
+values in InP, In<sub>0.53</sub>Ga<sub>0.47</sub>As and GaAs, so they apply across the lattice-matched quaternary), linear in between and held constant outside;
+J. Taylor and V. Tolstikhin, J. Appl. Phys. 87, 1054 (2000) reproduce them with a 6×6 Luttinger–Kohn model.
 Electrons use 4×10⁻¹⁸ cm² (n-GaAs at 1.5 µm, D. C. Look et al., Appl. Phys. Lett. 65, 2188 (1994)) until an InP-specific value is added.</li>
-<li><b>GaN, AlGaN, InGaN, AlN</b>: electrons 0.6×10⁻¹⁸ cm², measured at 450 nm by S. Pimputkar et al., J. Cryst. Growth 432, 49 (2015), in agreement with the
-first-principles phonon-assisted absorption of E. Kioupakis et al., Phys. Rev. B 81, 241201(R) (2010). For Mg-doped layers most of the loss comes from holes bound
-to Mg (Kioupakis et al.: about 12 cm⁻¹ at [Mg] = 2×10¹⁹ cm⁻³), so enter the Mg concentration as the doping; σ = 0.6×10⁻¹⁸ cm² per Mg atom (interim).</li>
+<li><b>GaN, AlGaN, InGaN, AlN</b>: electrons use the phonon-assisted cross-section of E. Kioupakis, P. Rinke and C. G. Van de Walle, Appl. Phys. Express 3, 082101 (2010)
+(Table I fit, 380–680 nm, light polarized in the c-plane), about 0.6×10⁻¹⁸ cm² at 450 nm, which matches the measurement of S. Pimputkar et al., J. Cryst. Growth 432, 49 (2015).
+In Mg-doped layers most of the loss is absorption by holes bound to activated Mg acceptors rather than by free holes, so enter the <b>Mg concentration</b> as the doping.
+Two values are offered: the measurement of D. Sizov, R. Bhat and C. Zah, J. Appl. Phys. 113, 203108 (2013), about 1×10⁻¹⁷ cm² per activated Mg, weakly dependent on wavelength
+and temperature and isotropic (default), and the first-principles free + bound hole cross-section of Kioupakis et al. (2010) (0.9×10⁻¹⁸ cm² at 450 nm), about ten times smaller.</li>
 <li><b>AlGaInP</b>: estimate only, the GaAs values scaled by (λ/870 nm)².</li></ul>
-<p>Doping in the active region and injected carriers are not included.</p>
+<p>Typing a doping into an n- or p-type layer whose material has a model switches that layer to “From doping”. Doping in the active region and injected carriers are not included,
+nor is the near-band-edge (Urbach) absorption of heavily doped GaN, which matters below about 420 nm.</p>
 
 <h2>Planned</h2>
 <ul><li>Phase 2: apertures (oxide / air), effective-index lateral modes, diffraction and scattering loss, 2D modal gain.</li>

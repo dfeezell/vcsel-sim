@@ -43,6 +43,7 @@ class Layer:
     doping: float = 0.0               # cm^-3 (magnitude); for Mg-doped nitrides the Mg concentration
     absorption_mode: str = "manual"   # "manual" -> `absorption`; "doping" -> alpha = sigma * doping (see fca.py)
     sigma_fc: Optional[float] = None  # cm^2, overrides the literature cross-section in "doping" mode
+    fca_model: str = ""               # literature variant where several exist (see fca.VARIANTS); "" = default
     apertured: bool = False           # reserved for the 2D (aperture) phase
     marked: bool = False              # thickness is adjusted by "Tune cavity" (Vertical's Marks / Force Wave)
     color: Optional[str] = None

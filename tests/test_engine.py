@@ -210,3 +210,14 @@ def test_absorption_from_doping():
     assert abs(s[0] - 14e-18) < 1e-30 and abs(s[1] - 20e-18) < 1e-30
     act = Layer(material="InGaAs", layer_type="active", doping=1e18, absorption=2.0, absorption_mode="doping")
     assert float(act.alpha(980.0)) == 2.0                                  # active layers stay manual
+
+
+def test_doping_absorption_literature_values():
+    from vcsel_sim import fca
+    from vcsel_sim.structure import Layer
+    assert abs(fca.sigma("GaN", "n", 450.0) - 0.587e-18) < 0.01e-18        # Kioupakis APEX 2010, E perp c
+    assert fca.sigma("GaN", "p", 450.0) == 1e-17                           # Sizov 2013 per activated Mg
+    assert abs(fca.sigma("GaN", "p", 520.0, "kioupakis") - 1.38e-18) < 0.02e-18
+    assert abs(fca.sigma("InGaAsP", "p", 1600.0) - 25e-18) < 1e-30          # Henry 1983
+    L = Layer(material="InP", layer_type="p-type", doping=5e17, absorption_mode="doping")
+    assert abs(float(L.alpha(1300.0)) - 7.0) < 1e-9

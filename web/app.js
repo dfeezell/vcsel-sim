@@ -381,7 +381,8 @@ function renderProps() {
       <label>Layer type</label><select data-f="layer_type">${LAYER_TYPES.map(([v, l]) => `<option value="${v}" ${v === it.layer_type ? "selected" : ""}>${l}</option>`).join("")}</select>
       <label>Doping</label><div class="pair"><input type="text" inputmode="decimal" data-f="doping" data-num="1" style="width:110px" value="${it.doping ? (+it.doping).toExponential(2).replace("e+", "e") : 0}"><span class="hint">cm⁻³${useFca ? (ni?.fca?.family === "N" && it.layer_type === "p-type" ? " — Mg concentration (absorption scales with Mg, not holes)" : "") : (canFca ? " (sets α only with “From doping” below)" : " (recorded only)")}</span></div>
       ${canFca ? `<label>Absorption α</label><div class="seg" data-seg="absorption_mode"><button data-v="manual" class="${useFca ? "" : "on"}">Manual</button><button data-v="doping" class="${useFca ? "on" : ""}">From doping</button></div>` : ""}
-      ${useFca ? `<label>σ (${it.layer_type === "p-type" ? "holes" : "electrons"})</label><div class="pair"><input type="text" inputmode="decimal" data-f="sigma_fc" style="width:110px" placeholder="${ni?.fca?.sigma ? (+ni.fca.sigma).toExponential(2).replace("e+", "e") : "none"}" value="${it.sigma_fc ? (+it.sigma_fc).toExponential(2).replace("e+", "e") : ""}"><span class="hint">cm² (blank = literature value)</span></div>
+      ${useFca && (ni?.fca?.variants || []).length > 1 ? `<label>Model</label><select data-f="fca_model">${ni.fca.variants.map(([v, l], i) => `<option value="${v}" ${(it.fca_model || ni.fca.variants[0][0]) === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>` : ""}
+      ${useFca ? `<label>σ (${ni?.fca?.family === "N" && it.layer_type === "p-type" ? "per Mg" : it.layer_type === "p-type" ? "holes" : "electrons"})</label><div class="pair"><input type="text" inputmode="decimal" data-f="sigma_fc" style="width:110px" placeholder="${ni?.fca?.sigma ? (+ni.fca.sigma).toExponential(2).replace("e+", "e") : "none"}" value="${it.sigma_fc ? (+it.sigma_fc).toExponential(2).replace("e+", "e") : ""}"><span class="hint">cm² (blank = literature value)</span></div>
       <label></label><div class="hint">α = σ·N = <b>${ni ? fmt(ni.alpha, 4) : "—"}</b> cm⁻¹ at λ<sub>design</sub>${ni?.fca?.ref ? `<br>${esc(ni.fca.ref)}` : (it.sigma_fc ? "" : "<br>No literature model for this material; enter σ.")}</div>` :
         `<label>${canFca ? "" : "Absorption α"}</label><div class="pair"><input type="number" step="0.1" data-f="absorption" value="${it.absorption}"><span class="hint">cm⁻¹ (free-carrier etc.; ${it.layer_type === "active" ? "background loss — threshold gain is added on top" : "&lt;0 = gain"})</span></div>`}
       ${isBoundary ? "" : `<label>Marked</label><div class="pair"><input type="checkbox" data-f="marked" ${it.marked ? "checked" : ""}><span class="hint">thickness adjusted by “Tune cavity”</span></div>
@@ -405,6 +406,10 @@ $("#props").addEventListener("change", (e) => {
   const it = getAt(S.sel);
   let v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
   if (e.target.dataset.num) v = Math.abs(parseFloat(v)) || 0;
+  if (f === "doping" && v > 0 && it.absorption_mode !== "doping" && (it.layer_type === "n-type" || it.layer_type === "p-type")) {
+    const ni = nodeValue(S.sel);                                  // fill α from the literature model when one exists
+    if (ni?.fca?.family) { it.absorption_mode = "doping"; toast("Absorption α now follows the doping (literature model). Choose “Manual” to type your own α."); }
+  }
   if (f === "sigma_fc") { const t = String(v).trim(); v = t === "" ? null : (Math.abs(parseFloat(t)) || null); }
   if (e.target.type === "number") v = f === "repeats" ? Math.max(0, parseInt(v) || 0) : (parseFloat(v) || 0);
   if (f === "material" && v === "Generic" && it.index_mode !== "fixed") {   // keep the current index as the fixed value

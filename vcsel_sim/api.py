@@ -204,10 +204,11 @@ def node_info(design_json):
                     n = complex(np.atleast_1d(it.index(lam))[0])
                     fam = fca.family(it.material)
                     car = fca.carrier_of(it.layer_type)
-                    sg = fca.sigma(it.material, car, lam) if (fam and car) else None
+                    sg = fca.sigma(it.material, car, lam, it.fca_model) if (fam and car) else None
                     nodes.append({"d": it.physical_thickness(lam), "n": n.real, "k": n.imag,
                                   "alpha": float(np.atleast_1d(it.alpha(lam))[0]),
-                                  "fca": {"family": fam, "carrier": car, "ref": fca.REFS.get(fam),
+                                  "fca": {"family": fam, "carrier": car, "ref": fca.reference(it.material, car, it.fca_model) if car else None,
+                                          "variants": fca.variants(it.material, car),
                                           "sigma": float(np.atleast_1d(sg)[0]) if sg is not None else None},
                                   "eg": materials.bandgap(it.material, it.x, it.y) if it.index_mode == "model" else None})
         walk(s.stack)
