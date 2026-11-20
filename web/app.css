@@ -211,7 +211,7 @@ body.view-diagram .stack-diagram { display: flex; flex-direction: column; flex: 
 .plot-opts input[type=number] { width: 72px; }
 .plot-opts label { display: inline-flex; align-items: center; gap: 5px; }
 .spacer { flex: 1; }
-.plot { flex: 1; min-height: 420px; }
+.plot { flex: 1; min-height: 340px; }
 .plot.short { flex: none; height: 380px; }
 #plot-refl { flex: none; height: 500px; min-height: 0; }
 .dbr-medium { display: inline-flex; align-items: center; gap: 4px; }
@@ -231,6 +231,7 @@ body.view-diagram .stack-diagram { display: flex; flex-direction: column; flex: 
 
 /* ---------- tables ---------- */
 .table-wrap { overflow: auto; padding: 0 12px 12px; }
+#layer-table table.t td, #layer-table table.t th { white-space: nowrap; }
 table.t { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 table.t th, table.t td { padding: 5px 8px; border-bottom: 1px solid var(--line-2); text-align: left; }
 table.t th { position: sticky; top: 0; background: #fafbfc; color: var(--ink-2); font-weight: 600; font-size: 11.5px; z-index: 1; }

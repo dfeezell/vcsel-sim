@@ -12,7 +12,7 @@ so a quarter-wave layer is 0.25. Changing the design wavelength rescales every l
 
 <h2>Method</h2>
 <h3>Transfer matrices</h3>
-<p>The field in each layer is <span class="eq">E(z) = A e^{ikz} + B e^{−ikz},   k = 2π ñ / λ,   ñ = n + iκ</span>
+<p>The field in each layer is <span class="eq">E(z) = A e<sup>ikz</sup> + B e<sup>−ikz</sup>,   k = 2π ñ / λ,   ñ = n + iκ</span>
 with time dependence e<sup>−iωt</sup>, so κ &gt; 0 is loss. An absorption coefficient α (cm⁻¹) enters as κ = αλ/4π, and gain is α &lt; 0.
 E and H are matched at every interface using 2×2 characteristic matrices. All integrals of |E|² over a layer are done analytically, with no sampling error.</p>
 <h3>Threshold</h3>
@@ -28,12 +28,12 @@ Every term is divided by the one-way power flux in the active layers, P<sub>ref<
 mean, and is 2 for a thin well at an antinode. The longitudinal confinement factor is energy-weighted,
 <span class="eq">Γ = ∫<sub>active</sub> n²|E|² dz / ∫<sub>stack</sub> n²|E|² dz</span>
 This defines the effective cavity length L = Γ<sub>enh</sub> L<sub>a</sub>/Γ. The per-length losses are then
-<span class="eq">α<sub>i</sub> = RT loss / 2L,   α<sub>m</sub> = RT transmission / 2L,   Γ g<sub>th</sub> = α<sub>i</sub> + α<sub>m</sub></span>
-These follow the definitions in the course notes (“Vertical Gain and Loss Definitions”): R<sub>up/down</sub> = exp(−RT transmission up/down), and
+<span class="eq">α<sub>i</sub> = −ln(1 − RT loss) / 2L,   α<sub>m</sub> = (1/2L) ln[1/((1 − T<sub>up</sub>)(1 − T<sub>down</sub>))]   (exact, default)<br>α<sub>i</sub> = RT loss / 2L,   α<sub>m</sub> = RT transmission / 2L,   Γ g<sub>th</sub> = α<sub>i</sub> + α<sub>m</sub>   (linear, as Vertical)</span>
+The linear forms are the definitions in the course notes (“Vertical Gain and Loss Definitions”), with R<sub>up/down</sub> = exp(−RT transmission up/down); the exact forms use R<sub>up/down</sub> = 1 − RT transmission up/down. The photon lifetime is the stored energy, (ε<sub>0</sub>/2)∫ n n<sub>g</sub> |E|² dz with the group index n<sub>g</sub> of each layer, divided by the power lost to absorption and output. In both cases
 the external differential efficiency is η<sub>d</sub> = η<sub>i</sub> × RT transmission / RT gain (slope efficiency η<sub>d</sub> hν/q in W/A).</p>
 <h3>Cavity length, penetration depth and confinement (course notes)</h3>
 <p>The Results tab also follows the ECE 577 notes (“Vertical Gain and Loss Definitions”) and Coldren &amp; Corzine Appendix 7.
-Each DBR's penetration depth comes from the exact quarter-wave expressions</p>
+Each DBR's penetration depth comes from the closed-form quarter-wave expressions</p>
 <span class="eq">m<sub>eff</sub> = tanh[m ln(n<sub>2</sub>/n<sub>1</sub>)] / tanh[ln(n<sub>2</sub>/n<sub>1</sub>)],   L<sub>eff</sub> = ½ m<sub>eff</sub> Λ [1/(1+r²) − 1/(2m<sub>eff</sub>)]</span>
 <p>measured from the first low-index layer. A high-index mirror layer that touches the cavity is counted in the cavity. The effective length is then
 <span class="eq">L = L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>,   Γ = Γ<sub>enh</sub> L<sub>a</sub> / L</span>

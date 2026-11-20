@@ -84,7 +84,8 @@ def algaas(lam, x, y=0.0):
 
 
 def eg_ingaas(x):
-    return 1.425 - 1.337 * x + 0.270 * x * x   # Takagi (1978)
+    """300 K gap of In(x)Ga(1-x)As, K.-H. Goetz et al., J. Appl. Phys. 54, 4543 (1983) (0.75 eV at x = 0.53)."""
+    return 1.425 - 1.501 * x + 0.436 * x * x
 
 
 def ingaas(lam, x, y=0.0):
@@ -359,7 +360,7 @@ register("InGaAs", ingaas, "InxGa1-xAs", "GaAs-based", "x (In)", None, x_range=(
          reference="M. Takagi, Jpn. J. Appl. Phys. 17, 1813 (1978) (Wemple-DiDomenico parameters). "
                    "Same model as Vertical (In0.2GaAs: 3.57717 at 980 nm).",
          notes="Real index only; typically used for strained quantum wells on GaAs. Band gap is the "
-               "unstrained bulk value (Takagi).", default_type="active")
+               "unstrained bulk value at 300 K (Goetz et al., J. Appl. Phys. 54, 4543 (1983)).", default_type="active")
 register("InGaAsP", ingaasp, "InGaAsP / InP (lattice matched)", "InP-based", "y (As)", None,
          bandgap=eg_ingaasp,
          reference="H. Fiedler and A. Schlachetzki, Solid-State Electron. 30, 73 (1987) (MSOM parameters); "

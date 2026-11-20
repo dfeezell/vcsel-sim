@@ -559,7 +559,7 @@ const RES = [
     ["wavelength", "Lasing wavelength", "nm", "Wavelength at which the structure supports an outgoing-only field with gain"],
     ["threshold_gain", "Threshold material gain g<sub>th</sub>", "cm⁻¹", "Gain applied uniformly to all active layers", "Gth (cm^-1)"],
     ["modal_gain", "Threshold modal gain Γg<sub>th</sub>", "cm⁻¹", "= α<sub>i</sub> + α<sub>m</sub>"],
-    ["photon_energy", "Photon energy", "eV"], ["lifetime_ps", "Photon lifetime τ<sub>p</sub>", "ps", "n<sub>g</sub>/(c(α<sub>i</sub>+α<sub>m</sub>)), n<sub>g</sub>≈ energy-weighted index"]]],
+    ["photon_energy", "Photon energy", "eV"], ["lifetime_ps", "Photon lifetime τ<sub>p</sub>", "ps", "stored energy / power lost (absorption + output), with the group index n<sub>g</sub> of each layer"]]],
   ["Round-trip budget (fractions per round trip)", [
     ["rt_gain", "Round-trip gain", "", "2 g<sub>th</sub> L<sub>a</sub> Γ<sub>enh</sub>", "round trip gain"],
     ["rt_loss", "Round-trip internal loss", "", "absorption in all passive layers", "round trip loss"],
@@ -593,7 +593,7 @@ function cavityRows(C, showV) {
   const row = (label, v, unit, def, vv) => `<tr><td>${label}</td><td class="n">${fmt(v, 6)}</td><td>${unit}</td>${showV ? `<td class="n">${vv === undefined ? "" : fmt(vv, 6)}</td>` : ""}<td class="def">${def}</td></tr>`;
   const half = Math.round(2 * K.chi) / 2;
   h += row("Cavity length L<sub>cav</sub>", C.L_cav, "nm", "physical thickness between the DBRs (active + barriers + SCH)");
-  h += row(`Top DBR penetration L<sub>eff,1</sub>`, K.L_eff_top, "nm", "Coldren A7.25 (exact quarter-wave expression); see the mirror table below");
+  h += row(`Top DBR penetration L<sub>eff,1</sub>`, K.L_eff_top, "nm", "Coldren A7.25 closed form; see the mirror table below for the value from the computed reflection phase");
   h += row(`Bottom DBR penetration L<sub>eff,2</sub>`, K.L_eff_bottom, "nm", "Coldren A7.25");
   h += row("Effective cavity length L", K.L, "nm", "L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>");
   h += row("Confinement factor Γ", K.confinement, "", "Γ<sub>enh</sub> L<sub>a</sub> / L (Vertical column: Vertical's Γ<sub>enh</sub> and round-trip values)", KV.confinement);
@@ -668,7 +668,7 @@ function plotMaterial() {
   Plotly.react($("#plot-mat"), tr, { font: PLOT_FONT, margin: { l: 64, r: 64, t: 30, b: 50 }, title: { text: `${esc(m.label)}${m.x_label ? `, ${m.x_label} = ${$("#m-x").value}` : ""}${r.bandgap ? ` — E<sub>g</sub> = ${r.bandgap.toFixed(3)} eV` : ""}`, font: { size: 13 }, x: 0.01, xanchor: "left" },
     xaxis: { title: { text: "Wavelength (nm)" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
     yaxis: { title: { text: "n" }, showline: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
-    yaxis2: { title: { text: "k" }, overlaying: "y", side: "right", showgrid: false, showline: true, linecolor: "#444", ticks: "outside" },
+    yaxis2: { title: { text: "k" }, overlaying: "y", side: "right", showgrid: false, zeroline: false, showline: true, linecolor: "#444", ticks: "outside" },
     legend: { orientation: "h", x: 0.75, y: 1.1 }, shapes }, PLOT_CONFIG);
 }
 

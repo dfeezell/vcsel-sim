@@ -360,7 +360,12 @@ def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="botto
     La = float(model.d[act].sum())
 
     # one-way power flux in the active layers (thickness-weighted mean)
-    sw = np.abs(A[inner]) ** 2 + np.abs(B[inner]) ** 2           # local standing-wave mean of |E|^2
+    # local standing-wave mean of |E|^2, i.e. |A(u)|^2+|B(u)|^2 averaged across each layer (the amplitudes
+    # grow or decay inside gain / loss layers, so the value at the layer top is not quite the mean)
+    kk = 2 * np.pi * nl / lam
+    dd = np.where(model.d > 0, model.d, 1.0)
+    sw = (np.abs(A[inner]) ** 2 * np.real(tmm._expint(-2 * kk.imag, dd)) +
+          np.abs(B[inner]) ** 2 * np.real(tmm._expint(2 * kk.imag, dd))) / dd
     Pref = float(np.sum((nl.real * sw / 2)[act] * model.d[act]) / La)
     enh = float(np.sum(I[act]) / np.sum(sw[act] * model.d[act]))
 
@@ -380,13 +385,22 @@ def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="botto
     Eph = HC_EV_NM / lam
     eta_t = internal_efficiency * rt_t_top / rt_gain
     eta_b = internal_efficiency * rt_t_bot / rt_gain
-    c_cm_ps = 2.99792458e-2
-    n_avg = float(np.sum(nl.real * W) / np.sum(W))
     a_i = rt_to_per_length(rt_loss, Lcm, rt_model)
     R_t, R_b = rt_to_reflectance(rt_t_top, rt_model), rt_to_reflectance(rt_t_bot, rt_model)
     a_mt, a_mb = float(np.log(1 / R_t) / (2 * Lcm)), float(np.log(1 / R_b) / (2 * Lcm))
     tot = a_i + a_mt + a_mb
-    tau = n_avg / (c_cm_ps * tot) if tot > 0 else float("inf")
+    # photon lifetime = stored energy / power leaving the mode (absorption + transmission), with the
+    # dispersive energy density (eps0/2) n n_g |E|^2.  Gain is not a loss: active layers count only their
+    # background absorption.  Agrees with the cold-cavity quasi-normal-mode decay rate when n_g = n.
+    dl = 1e-3 * lam
+    n_p = np.array([np.real(x[0]) for x in model.indices(lam + dl, g)])[inner]
+    n_m = np.array([np.real(x[0]) for x in model.indices(lam - dl, g)])[inner]
+    n_g = nl.real - lam * (n_p - n_m) / (2 * dl)
+    bg = np.array([4 * np.pi * (f.layer.index(lam, 0.0).imag) / lam if act[j] else alpha_nm[j]
+                   for j, f in enumerate(model.flat)], dtype=float)
+    p_out = float(np.sum(bg * nl.real * I) + flux_top + flux_bot)
+    stored = float(np.sum(nl.real * n_g * I))
+    tau = stored / (2.99792458e5 * p_out) if p_out > 0 else float("inf")      # c in nm/ps
 
     # field profile (|E|^2, Vertical style) and normalisation
     prof = sample_field(model, lam, nn, A, B, spacing_passive, spacing_active)
