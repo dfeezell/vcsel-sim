@@ -447,7 +447,7 @@ register("AlOx", constant(1.60), "AlOx (oxidised AlGaAs)", "Dielectrics",
          default_type="oxide")
 register("Air", constant(1.0), "Air / vacuum", "Other", reference="n = 1", default_type="other")
 register("Generic", constant(3.5), "Generic (fixed index)", "Other",
-         reference="User-defined", notes="Set Index source = Fixed and enter n and k.", default_type="other")
+         reference="User-defined", notes="Enter n and k directly (no dispersion; n is the same at every wavelength).", default_type="other")
 register("Au", lambda lam, x=0, y=0: _table(T.AU, lam), "Au", "Metals",
          reference="P. B. Johnson and R. W. Christy, Phys. Rev. B 6, 4370 (1972).", default_type="metal")
 register("Ag", lambda lam, x=0, y=0: _table(T.AG, lam), "Ag", "Metals",

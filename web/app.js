@@ -111,6 +111,10 @@ function setDesign(d, rerun = true) {
   if (d.temperature == null) d.temperature = 23;
   // air / vacuum is lossless: drop any stray k left on an Air boundary in material-model mode
   for (const L of [d.top, d.substrate]) if (L && L.material === "Air" && L.index_mode !== "fixed" && L.n_imag) L.n_imag = 0;
+  // "Generic" has no dispersion model: it is always a fixed n, k layer (its old model value was n = 3.5)
+  const fixGeneric = (L) => { if (L && L.material === "Generic" && L.index_mode !== "fixed") { L.index_mode = "fixed"; if (!(L.n_real > 0)) L.n_real = 3.5; } };
+  fixGeneric(d.top); fixGeneric(d.substrate);
+  const walkG = (items) => items.forEach((it) => (it.kind === "group" ? walkG(it.children) : fixGeneric(it))); walkG(d.stack);
   $("#design-temp").value = d.temperature;
   $("#design-name").textContent = d.name || "Untitled";
   const lam = d.design_wavelength;
@@ -365,7 +369,7 @@ function renderProps() {
       <label>Material</label><select data-f="material">${matOptions(it.material)}</select>
       ${m.x_label ? `<label>${esc(m.x_label)}</label><div class="pair"><input type="number" step="0.01" min="${m.x_range?.[0] ?? 0}" max="${m.x_range?.[1] ?? 1}" data-f="x" value="${it.x}">${ni?.eg ? `<span class="hint">E<sub>g</sub>(Γ) = ${fmt(ni.eg, 4)} eV (${fmt(1239.842 / ni.eg, 4)} nm)</span>` : ""}</div>` : ""}
       ${m.y_label ? `<label>${esc(m.y_label)}</label><input type="number" step="0.01" data-f="y" value="${it.y}">` : ""}
-      <label>Index source</label><div class="seg" data-seg="index_mode"><button data-v="model" class="${it.index_mode === "model" ? "on" : ""}">Material model</button><button data-v="fixed" class="${it.index_mode === "fixed" ? "on" : ""}">Fixed n, k</button></div>
+      <label>Index source</label>${it.material === "Generic" ? '<div class="hint">Fixed n, k (Generic has no material model)</div>' : `<div class="seg" data-seg="index_mode"><button data-v="model" class="${it.index_mode === "model" ? "on" : ""}">Material model</button><button data-v="fixed" class="${it.index_mode === "fixed" ? "on" : ""}">Fixed n, k</button></div>`}
       ${it.index_mode === "fixed" ? `<label>n (real)</label><input type="number" step="0.0001" data-f="n_real" value="${it.n_real}">` :
         `<label>n at λ<sub>design</sub></label><div class="hint">${ni ? `${fmt(ni.n, 6)} + ${fmt(ni.k, 3)} i` : "—"}</div>`}
       <label>k (added)</label><div class="pair"><input type="number" step="0.0001" data-f="n_imag" value="${it.n_imag}"><span class="hint">extinction coeff., &gt;0 = loss</span></div>
@@ -397,6 +401,9 @@ $("#props").addEventListener("change", (e) => {
   let v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
   if (e.target.dataset.num) v = Math.abs(parseFloat(v)) || 0;
   if (e.target.type === "number") v = f === "repeats" ? Math.max(0, parseInt(v) || 0) : (parseFloat(v) || 0);
+  if (f === "material" && v === "Generic" && it.index_mode !== "fixed") {   // keep the current index as the fixed value
+    const ni = nodeValue(S.sel); it.index_mode = "fixed"; if (ni) it.n_real = +ni.n.toFixed(6);   // k stays the "added" k; absorption α is kept separately
+  }
   if (f === "material") {
     const m = S.matByKey[v];
     if (m && it.layer_type !== "active" && ["dielectric", "metal", "oxide"].includes(m.default_type)) it.layer_type = m.default_type;
