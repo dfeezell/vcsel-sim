@@ -265,9 +265,19 @@ function matFormula(material, x, y) {
 const MODEL_TAG = { AlGaAs_Gehrsitz: "Gehrsitz", AlGaInP_Adachi: "Adachi" };
 // escaped HTML with alloy compositions subscripted: Al0.90Ga0.10As -> Al<sub>0.90</sub>Ga<sub>0.10</sub>As
 const ALLOY_RE = /([A-Z][a-z]?)(\d*\.\d+)/g;
-function subHTML(s) { return esc(s).replace(ALLOY_RE, "$1<sub>$2</sub>"); }
+// dielectric compounds written with integer subscripts (SiO2 -> SiO<sub>2</sub>); a fixed list, so layer names like QW1 are left alone
+const COMPOUND_RE = /\b(SiO2|Si3N4|Ta2O5|TiO2|HfO2|Nb2O5|Al2O3|Ga2O3|ZrO2|MgF2|CaF2|Y2O3|Sc2O3)\b/g;
+function subHTML(s) { return esc(s).replace(ALLOY_RE, "$1<sub>$2</sub>").replace(COMPOUND_RE, (m) => m.replace(/(\d+)/g, "<sub>$1</sub>")); }
 // the same for SVG text (lowered, smaller tspans; works in every SVG renderer)
-function subSVG(s) { return esc(s).replace(ALLOY_RE, '$1<tspan dy="3.5" font-size="0.75em">$2</tspan><tspan dy="-3.5">\u200b</tspan>'); }
+function subSVG(s) {
+  const t = (c) => `<tspan dy="3.5" font-size="0.75em">${c}</tspan><tspan dy="-3.5">\u200b</tspan>`;
+  return esc(s).replace(ALLOY_RE, (m, el, c) => el + t(c)).replace(COMPOUND_RE, (m) => m.replace(/(\d+)/g, (d) => t(d)));
+}
+// material labels such as AlxGa1-xAs with Unicode subscripts (AlₓGa₁₋ₓAs), for <option> text that cannot hold HTML
+const LABEL_RE = /([A-Z][a-z]?)(x|y|\d*\.?\d+-x|\d*\.?\d+)(?=[A-Z(\s\/,]|$)/g;
+const UNI_SUB = { 0: "₀", 1: "₁", 2: "₂", 3: "₃", 4: "₄", 5: "₅", 6: "₆", 7: "₇", 8: "₈", 9: "₉", "-": "₋", x: "ₓ", y: "ᵧ" };
+function uniLabel(s) { return String(s).replace(LABEL_RE, (m, el, c) => el + [...c].map((ch) => UNI_SUB[ch] ?? ch).join("")); }
+function labelHTML(s) { return esc(s).replace(LABEL_RE, (m, el, c) => `${el}<sub>${c.replace("-", "−")}</sub>`); }
 function matText(L) {
   const f = matFormula(L.material, L.x, L.y);
   let t = f || L.material;
@@ -390,7 +400,7 @@ function matOptions(cur) {
   const cats = {};
   S.materials.forEach((m) => (cats[m.category] = cats[m.category] || []).push(m));
   return Object.entries(cats).map(([c, ms]) => `<optgroup label="${esc(c)}">${ms.map((m) =>
-    `<option value="${m.key}" ${m.key === cur ? "selected" : ""}>${esc(m.label)}</option>`).join("")}</optgroup>`).join("");
+    `<option value="${m.key}" ${m.key === cur ? "selected" : ""}>${esc(uniLabel(m.label))}</option>`).join("")}</optgroup>`).join("");
 }
 function renderProps() {
   if (window.selHighlight) setTimeout(selHighlight, 0);
@@ -547,7 +557,16 @@ function placeLegend(el) {
     if (n === 0) break;
   }
   const cur = L.legend;
-  if (best && (cur.xanchor !== best.xan || cur.yanchor !== best.yan))
+  if (!best) return;
+  // every corner hides a real stretch of curve (dense phase plots): put the legend under the plot instead
+  if (best.n > 40) {
+    if (cur.yref === "container") return;
+    const h = bb.height + 12;
+    plotQueue(el, () => Plotly.relayout(el, { "legend.xref": "paper", "legend.x": 0, "legend.xanchor": "left", "legend.yref": "container", "legend.y": 0.01, "legend.yanchor": "bottom",
+      "margin.b": (L.margin?.b || 50) + h }));
+    return;
+  }
+  if (cur.xanchor !== best.xan || cur.yanchor !== best.yan)
     plotQueue(el, () => Plotly.relayout(el, { "legend.x": best.x, "legend.xanchor": best.xan, "legend.y": best.y, "legend.yanchor": best.yan }));
 }
 // wrap long legend text at about `width` characters (Plotly legends do not wrap on their own)
@@ -836,15 +855,17 @@ function renderLayerTable() {
   try { S.layerRows = call("layer_table", designJSON()).layers; } catch (e) { toast(e.message, true); return; }
   const cols = [["index", "#"], ["path", "Layer"], ["material", "Material"], ["x", "x"], ["type", "Type"], ["thickness_nm", "d (nm)"], ["z_top_nm", "z top (nm)"],
     ["n", "n"], ["k", "k"], ["absorption_cm", "α (cm⁻¹)"], ["optical_thickness_waves", "n·d/λ"], ["bandgap_eV", "E<sub>g</sub> (eV)"], ["doping_cm3", "doping (cm⁻³)"]];
+  // quaternaries need y as well as x
+  if (S.layerRows.some((r) => S.matByKey[r.material]?.y_label)) cols.splice(4, 0, ["y", "y"]);
   $("#layers-note").innerHTML = `${S.layerRows.length} layers at λ = ${S.design.design_wavelength} nm, top → bottom`;
   $("#layer-table").innerHTML = `<table class="t"><thead><tr>${cols.map(([, l]) => `<th>${l}</th>`).join("")}</tr></thead><tbody>${S.layerRows.map((r) =>
-    `<tr>${cols.map(([k]) => (typeof r[k] === "number" ? `<td class="n">${k === "index" ? r[k] : fmt(r[k], 6)}</td>` : `<td>${esc(r[k] ?? "")}</td>`)).join("")}</tr>`).join("")}</tbody></table>`;
+    `<tr>${cols.map(([k]) => (typeof r[k] === "number" ? `<td class="n">${k === "index" ? r[k] : fmt(r[k], 6)}</td>` : `<td>${k === "path" || k === "material" ? subHTML(r[k] ?? "") : esc(r[k] ?? "")}</td>`)).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 /* ------------------------------------------------------------------ materials tab */
 function initMaterialsTab() {
   $("#m-mat").innerHTML = matOptions("AlGaAs");
-  const refs = S.materials.map((m) => `<tr><td><b>${esc(m.label)}</b></td><td>${esc(m.category)}</td><td>${esc(m.reference)}</td><td class="def">${esc(m.notes || "")}</td></tr>`).join("");
+  const refs = S.materials.map((m) => `<tr><td><b>${labelHTML(m.label)}</b></td><td>${esc(m.category)}</td><td>${esc(m.reference)}</td><td class="def">${esc(m.notes || "")}</td></tr>`).join("");
   $("#mat-refs").innerHTML = `<table class="t"><thead><tr><th>Material</th><th>Family</th><th>Model / reference</th><th>Notes</th></tr></thead><tbody>${refs}</tbody></table>
   <p class="note">Any layer can instead use a fixed n, k (Index source → Fixed), e.g. to enter a measured value. Indices imported from Vertical .vrt files are fixed at the values stored in the file.</p>`;
   ["#m-mat", "#m-x", "#m-y", "#m-min", "#m-max", "#m-at"].forEach((s) => $(s).addEventListener("change", plotMaterial));
@@ -860,7 +881,7 @@ function plotMaterial() {
   const shapes = r.bandgap ? [{ type: "line", x0: 1239.842 / r.bandgap, x1: 1239.842 / r.bandgap, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", dash: "dash", width: 1 } }] : [];
   const cv = (lbl, v) => { const [sym, ...rest] = lbl.trim().split(/\s+/); return `${sym} = ${fmt(v, 4)}${rest.length ? " " + rest.join(" ") : ""}`; };
   const comp = [m.x_label ? cv(m.x_label, +$("#m-x").value) : "", m.y_label ? cv(m.y_label, +$("#m-y").value) : ""].filter(Boolean).join(", ");
-  const title = `${esc(m.label)}${comp ? `,&nbsp; ${comp}` : ""}${r.bandgap ? `;&nbsp;&nbsp;band gap E<sub>g</sub> = ${r.bandgap.toFixed(3)} eV (${(1239.842 / r.bandgap).toFixed(1)} nm, dashed line)` : ""}`;
+  const title = `${labelHTML(m.label)}${comp ? `,&nbsp; ${comp}` : ""}${r.bandgap ? `;&nbsp;&nbsp;band gap E<sub>g</sub> = ${r.bandgap.toFixed(3)} eV (${(1239.842 / r.bandgap).toFixed(1)} nm, dashed line)` : ""}`;
   const at = parseFloat($("#m-at").value);
   if (Number.isFinite(at) && at > 0) {
     try {
@@ -1070,10 +1091,15 @@ $("#file-input").addEventListener("change", async (e) => {
     }
   } catch (err) { toast("Could not open file: " + err.message, true, 6000); }
 });
+function noActive() {
+  const walk = (items) => items.some((it) => (it.kind === "group" ? walk(it.children) : it.layer_type === "active"));
+  return !(S.design && walk(S.design.stack));
+}
 function exportCSV(kind) {
   try {
     if (kind === "field") {
-      const A = S.analysis; if (!A) throw new Error("Run the analysis first");
+      const A = S.analysis;
+      if (!A) throw new Error(noActive() ? "No |E|² field: the design has no active layer, so there is no lasing mode. File ▸ Export CSV ▸ Index profile gives the index profile." : "Run the analysis first");
       const f = A.field; let t = `# ${S.design.name}\n# lasing wavelength ${A.results.wavelength} nm, |E|^2 normalized to ${A.results.normalization}\n# z measured from the top surface (nm)\nz_nm,E2,n\n`;
       for (let i = 0; i < f.z.length; i++) t += `${f.z[i]},${f.E2[i]},${f.n[i]}\n`;
       return download(`${slug()}_field.csv`, t);
@@ -1086,7 +1112,7 @@ function exportCSV(kind) {
       for (let i = 0; i < lam.length; i++) t += `${lam[i]},${parts.map(([, s]) => `${s.R[i]},${s.phase_deg[i]},${s.T[i]}`).join(",")}\n`;
       return download(`${slug()}_reflectance.csv`, t);
     }
-    if (kind === "results" && !S.analysis) throw new Error("Run the analysis first");
+    if (kind === "results" && !S.analysis) throw new Error(noActive() ? "No threshold results: the design has no active layer (set Layer type = active on the gain layers)." : "Run the analysis first");
     const payload = kind === "results" ? { results: S.analysis.results } : {};
     const r = call("csv_export", designJSON(), kind, JSON.stringify(payload));
     download(`${slug()}_${kind}.${kind === "inputs" ? "json" : "csv"}`, r.csv, kind === "inputs" ? "application/json" : "text/csv");
