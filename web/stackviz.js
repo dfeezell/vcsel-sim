@@ -192,7 +192,15 @@ function renderDiagramView() {
 /* Shrink layer blocks so the whole stack fits the visible panel (thickest layers stay tallest). */
 function fitBlocks(blocks) {
   blocks.classList.remove("fitted");
-  const avail = blocks.clientHeight; if (blocks.scrollHeight <= avail + 1) return;
+  const avail = blocks.clientHeight;
+  if (blocks.scrollHeight <= avail + 1) {               // spare room: stretch the blocks to fill the panel
+    const layers = $$(".dg-layer", blocks); const extra = avail - (blocks.firstElementChild?.getBoundingClientRect().height || avail) - 4;
+    if (!layers.length || extra < 8) return;
+    const h0 = layers.map((l) => l.getBoundingClientRect().height); const sum0 = h0.reduce((a, b) => a + b, 0);
+    const k = Math.min(1 + extra / sum0, 2.5);           // at most 2.5x taller than normal
+    layers.forEach((l, i) => { l.style.height = (h0[i] * k).toFixed(2) + "px"; });
+    return;
+  }
   blocks.classList.add("fitted");                       // compact headers / margins first
   const layers = $$(".dg-layer", blocks);
   const h0 = layers.map((l) => l.getBoundingClientRect().height);
