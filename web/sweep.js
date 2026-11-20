@@ -38,7 +38,9 @@ const SW_OUT = [
   ["confinement", "Confinement Γ", ""],
   ["enhancement", "Gain enhancement Γ<sub>enh</sub>", ""],
   ["lifetime_ps", "Photon lifetime", "ps"],
-  ["effective_length", "Effective cavity length L", "nm"],
+  ["effective_length", "Effective length L (energy-based, Γ<sub>enh</sub>L<sub>a</sub>/Γ)", "nm"],
+  ["L_cav_pen", "Effective length L<sub>c</sub> + L<sub>p,top</sub> + L<sub>p,bot</sub>", "nm"],
+  ["L_cav", "Physical cavity length L<sub>c</sub>", "nm"],
   ["cavity_optical_waves", "Cavity optical thickness", "λ"],
   ["L_pen_top", "Top DBR penetration depth", "nm"],
   ["L_pen_bottom", "Bottom DBR penetration depth", "nm"],
@@ -278,7 +280,7 @@ function swFlat(traces, axis) {
   const v = traces.filter((t) => (t.yaxis || "y") === axis).flatMap((t) => t.y).filter((y) => Number.isFinite(y));
   if (v.length < 2) return null;
   const lo = Math.min(...v), hi = Math.max(...v), m = (lo + hi) / 2;
-  if (hi - lo > Math.max(1e-6 * Math.abs(m), 1e-12)) return null;
+  if (hi - lo > Math.max(1e-6 * Math.abs(m), 1e-15)) return null;
   const d = Math.abs(m) > 0 ? Math.abs(m) * 0.002 : 1;
   return { m, range: [m - d, m + d] };
 }
@@ -313,10 +315,11 @@ function swPlot() {
   // long tick labels push the margin out instead of running into the axis title
   for (const a of ["yaxis", "yaxis2"]) if (layout[a]) { layout[a].automargin = true; layout[a].title.standoff = 10; }
   [["yaxis", "y", y1], ["yaxis2", "y2", y2]].forEach(([a, id, k]) => {
-    if (!k || !layout[a] || layout[a].type === "log") return;
+    if (!k || !layout[a]) return;
     const f = swFlat(traces, id); if (!f) return;
-    layout[a].range = f.range; layout[a].autorange = false;
-    layout.annotations.push({ xref: "paper", x: id === "y" ? 0.01 : 0.99, xanchor: id === "y" ? "left" : "right", y: f.m, yref: id, yanchor: "bottom",
+    // log axes take their range in decades
+    layout[a].range = layout[a].type === "log" ? [Math.log10(f.m) - 0.15, Math.log10(f.m) + 0.15] : f.range; layout[a].autorange = false;
+    layout.annotations.push({ xref: "paper", x: id === "y" ? 0.01 : 0.99, xanchor: id === "y" ? "left" : "right", y: layout[a].type === "log" ? Math.log10(f.m) : f.m, yref: id, yanchor: "bottom",
       text: `constant: ${fmt(f.m, 7)}${id === "y2" ? " (right axis)" : ""}`, showarrow: false, font: { size: 11, color: "#495057" } });
   });
   el._autoLegend = true;

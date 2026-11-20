@@ -145,6 +145,8 @@ def sweep_point(design_json, options_json="{}"):
             out["cavity_optical_waves"] = c.get("cavity_optical_waves")
             out["L_pen_top"] = (c.get("top") or {}).get("L_eff_phase")
             out["L_pen_bottom"] = (c.get("bottom") or {}).get("L_eff_phase")
+            out["L_cav"] = c.get("L_cav")
+            out["L_cav_pen"] = (c.get("phase") or {}).get("L")          # L_cav + both phase penetration depths
         except Exception:
             pass
         if tuned:
