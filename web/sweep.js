@@ -15,7 +15,7 @@ const SW_PARAMS = [
   { k: "temperature", label: "Temperature", target: null, unit: "°C" },
   { k: "lambda", label: "Design wavelength (rescales layers given in waves)", target: null, unit: "nm" },
   { k: "alpha", label: "Absorption α of a layer (manual)", target: "layer", unit: "cm⁻¹" },
-  { k: "doping", label: "Doping of a layer", target: "layer", unit: "cm⁻³", log: true },
+  { k: "doping", label: "Doping of a layer (α from doping)", target: "layer", unit: "cm⁻³", log: true },
 ];
 /* ---- what can be plotted ------------------------------------------------ */
 const SW_OUT = [
@@ -70,6 +70,15 @@ function swTargets(type) {
   return out;
 }
 function swLayers(it, f) { if (it.kind === "group") it.children.forEach((c) => swLayers(c, f)); else f(it); }
+// scale every thickness in a subtree, including grading thicknesses (a growth-rate change scales the grades too)
+function swScale(it, k) {
+  if (it.kind === "group") {
+    if (it.grading && +it.grading.thickness_nm > 0) it.grading = { ...it.grading, thickness_nm: +it.grading.thickness_nm * k };
+    it.children.forEach((c) => swScale(c, k));
+  } else it.thickness *= k;
+}
+// a layer named after its composition ("Al0.30Ga0.70As spacer") keeps following it when x or y changes
+function swRename(L, oldF) { const f = matFormula(L.material, L.x, L.y); if (oldF && f && (L.name || "").startsWith(oldF)) L.name = f + L.name.slice(oldF.length); }
 // current value of a parameter in design d
 function swGet(d, P, path) {
   const it = path ? swAt(d, path) : null;
@@ -93,10 +102,10 @@ function swSet(d, P, path, v) {
   switch (P.k) {
     case "repeats": it.repeats = Math.max(0, Math.round(v)); break;
     case "thickness": it.thickness = Math.max(0, v); break;
-    case "x": it.x = v; break;
-    case "y": it.y = v; break;
-    case "group_scale": swLayers(it, (L) => { L.thickness *= v / 100; }); break;
-    case "all_scale": d.stack.forEach((c) => swLayers(c, (L) => { L.thickness *= v / 100; })); break;
+    case "x": { const f0 = matFormula(it.material, it.x, it.y); it.x = v; swRename(it, f0); break; }
+    case "y": { const f0 = matFormula(it.material, it.x, it.y); it.y = v; swRename(it, f0); break; }
+    case "group_scale": swScale(it, v / 100); break;
+    case "all_scale": d.stack.forEach((c) => swScale(c, v / 100)); break;
     case "grade_t": {
       const g = Object.assign({}, GRADE_DEF, it.grading || {});
       if (g.profile === "none") g.profile = "linear";
@@ -105,7 +114,7 @@ function swSet(d, P, path, v) {
     case "temperature": d.temperature = v; break;
     case "lambda": d.design_wavelength = v; break;
     case "alpha": it.absorption_mode = "manual"; it.absorption = v; break;
-    case "doping": it.doping = Math.max(0, v); break;
+    case "doping": it.doping = Math.max(0, v); if (it.layer_type !== "active") it.absorption_mode = "doping"; break;
   }
 }
 function swUnit(P, path) {
@@ -207,6 +216,16 @@ async function swRun() {
   if (P2 && P2.target && !p2) { toast("Choose the target of the second parameter", true); return; }
   if (swSame()) { toast("\u201cCurves for\u201d is the same input as \u201cVary\u201d, so the x value would overwrite it at every point. Pick a different input or layer group for the curves.", true); return; }
   const base = JSON.parse(designJSON());
+  // inputs that would leave every result unchanged
+  const anyLayer = (f) => { let hit = false; const w = (items) => items.forEach((it) => (it.kind === "group" ? w(it.children) : (hit = hit || f(it)))); w(base.stack); return hit; };
+  for (const [P, p] of [[P1, p1], [P2, p2]]) {
+    if (!P) continue;
+    if (P.k === "temperature" && !anyLayer((L) => L.index_mode !== "fixed" && L.material === "AlGaAs_Gehrsitz"))
+      toast("No layer uses a temperature-dependent material (AlGaAs, Gehrsitz model), so temperature changes nothing here.", true, 7000);
+    if (P.k === "doping") { const L = swAt(base, p);
+      if (L.layer_type === "active") toast("Active layers always use the manual α, so their doping changes nothing.", true, 6000);
+      else if (!["n-type", "p-type"].includes(L.layer_type)) toast(`“${L.name}” is ${L.layer_type}: set its layer type to n- or p-type so α can follow the doping.`, true, 7000); }
+  }
   const opts = { internal_efficiency: parseFloat($("#eta-i").value) || 1, rt_model: $("#rt-model").value };
   const retune = $("#sw-retune").checked;
   if (retune) {
@@ -335,10 +354,18 @@ function swPick(i, j) {
     ${keys.map((k) => `${swOutLabel(k)} ${r[k] == null ? "—" : fmt(r[k], 6)}`).join(" · ")}
     <button class="btn sm primary" id="sw-apply">Apply to design</button>`;
   $("#sw-apply").onclick = () => {
-    if (D.P2) swSet(S.design, D.P2, D.p2, cv.v2);
-    swSet(S.design, D.P1, D.p1, p.x);
-    (r.tuned || []).forEach((t) => { const L = swAt(S.design, t.path); if (L && L.kind !== "group") L.thickness = +t.thickness.toPrecision(8); });
-    changed(); toast("Applied to the design (Undo reverts it)");
+    // rebuild the point from the design the sweep started from, so scale factors never compound and
+    // pressing Apply twice gives the same design
+    const edited = designJSON() !== JSON.stringify(D.base);
+    const d = JSON.parse(JSON.stringify(D.base));
+    if (D.P2) swSet(d, D.P2, D.p2, cv.v2);
+    swSet(d, D.P1, D.p1, p.x);
+    (r.tuned || []).forEach((t) => { const L = swAt(d, t.path); if (L && L.kind !== "group") L.thickness = +t.thickness.toPrecision(8); });
+    const sel = S.sel; S.design = d; tagIds(d.stack);
+    $("#design-lambda").value = d.design_wavelength; $("#design-temp").value = d.temperature ?? 23;
+    S.sel = getAt(sel) ? sel : (d.stack.length ? ["stack", 0] : ["top"]);
+    changed();
+    toast(edited ? "Applied. The design had been edited since this sweep ran; those edits were replaced by the sweep's starting design (Undo reverts)." : "Applied to the design (Undo reverts it)", edited, edited ? 7000 : 3200);
   };
 }
 const SW_TABLE_KEYS = ["threshold_gain", "modal_gain", "wavelength", "slope_top", "slope_bottom", "ext_eff", "alpha_i", "alpha_m", "R_top_passive", "R_bottom_passive", "confinement", "enhancement", "lifetime_ps"];
@@ -359,7 +386,8 @@ function swCSV() {
   const keys = SW_OUT.map((o) => o[0]);
   const plain = (s) => s.replace(/<sub>(.*?)<\/sub>/g, "_$1").replace(/<[^>]+>/g, "");
   let t = `# ${S.design.name}: parameter sweep\n# x = ${plain(swXLabel(D))}${D.P2 ? `; curves: ${plain(D.P2.label)}${D.t2 ? " of " + D.t2 : ""}` : ""}\n${D.retune ? `# re-tuned to ${S.design.design_wavelength} nm after each step by scaling: ${D.retune.join("; ")} (factor in retune_scale)\n` : ""}`;
-  t += `${D.P2 ? "param2," : ""}param1,${keys.map((k) => plain(swOutLabel(k)).replace(/,/g, ";")).join(",")}\n`;
+  const h2 = D.P2 ? plain(`${swShort(D.P2)}${D.t2 ? ": " + D.t2.replace(/ ×\d+$/, "") : ""}${D.u2 ? ` (${D.u2})` : ""}`).replace(/,/g, ";") + "," : "";
+  t += `${h2}${plain(swXLabel(D)).replace(/,/g, ";")},${keys.map((k) => plain(swOutLabel(k)).replace(/,/g, ";")).join(",")}\n`;
   D.curves.forEach((cv) => cv.pts.forEach((p) => {
     const r = p.r || {};
     t += `${D.P2 ? cv.v2 + "," : ""}${p.x},${keys.map((k) => (r[k] == null || r.converged === false ? "" : r[k])).join(",")}\n`;
