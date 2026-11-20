@@ -76,10 +76,11 @@ def tuning_layers(structure: Structure, exclude=()):
     return out, "cavity spacers (no layers are marked)"
 
 
-def tune_layers(structure: Structure, layers, target=None, tol=1e-6, maxit=40, lam_guess=None):
+def tune_layers(structure: Structure, layers, target=None, tol=1e-6, maxit=40, start=1.0):
     """Scale the thickness of `layers` by a common factor until the real part of the cold-cavity mode equals
     `target` (default: design wavelength). Modifies the layers in place; returns a report dict. On failure
-    the thicknesses are restored."""
+    the thicknesses are restored. `start` is the first scale tried; a sweep passes the previous point's factor
+    so the cavity stays on the same longitudinal order (a factor far from it can land one half-wave longer)."""
     from .laser import Model, cold_cavity_mode
     target = float(target or structure.design_wavelength)
     base = [(L, L.thickness) for L in layers]
@@ -91,10 +92,11 @@ def tune_layers(structure: Structure, layers, target=None, tol=1e-6, maxit=40, l
         return cold_cavity_mode(Model(structure), target).real - target
 
     s_lo, s_hi = 0.3, 3.0
-    s0, s1 = 1.0, 1.02
+    s0 = float(start) if start and 0.3 < float(start) < 3.0 else 1.0
+    s1 = s0 * 1.02
     f0 = resonance(s0)
     if abs(f0) < tol:
-        return {"scale": 1.0, "resonance": f0 + target, "converged": True, "iterations": 1,
+        return {"scale": s0, "resonance": f0 + target, "converged": True, "iterations": 1,
                 "layers": [{"name": L.name, "old": t0, "new": L.thickness, "unit": L.thickness_unit} for L, t0 in base]}
     f1 = resonance(s1)
     br = (s0, f0, s1, f1) if f0 * f1 < 0 else None

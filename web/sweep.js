@@ -229,21 +229,21 @@ async function swRun() {
   let i0 = 0; xs.forEach((x, i) => { if (Math.abs(x - cur) < Math.abs(xs[i0] - cur)) i0 = i; });
   const order = [...xs.keys()].slice(i0).concat([...xs.keys()].slice(0, i0).reverse());
   for (const cv of SW.data.curves) {
-    let guess = lam0; const res = new Array(xs.length);
+    let guess = lam0, tguess = 1; const res = new Array(xs.length);   // tguess: previous re-tune factor (same cavity order)
     for (const i of order) {
       if (SW.stop) break;
-      if (i === i0 - 1) guess = res[i0]?.r?.wavelength || lam0;      // second branch starts again from the design point
+      if (i === i0 - 1) { guess = res[i0]?.r?.wavelength || lam0; tguess = res[i0]?.r?.retune_scale || 1; }  // second branch starts again from the design point
       const x = xs[i];
       const d = JSON.parse(JSON.stringify(base));
       if (P2) swSet(d, P2, p2, cv.v2);
       swSet(d, P1, p1, x);
       let r = null;
-      try { r = call("sweep_point", JSON.stringify(d), JSON.stringify({ ...opts, lambda_guess: retune ? d.design_wavelength : guess })).point; }
+      try { r = call("sweep_point", JSON.stringify(d), JSON.stringify({ ...opts, lambda_guess: retune ? d.design_wavelength : guess, retune_start: tguess })).point; }
       catch (e) { fails++; lastErr = e.message; }
       if (r) {
         r.T_top_passive = r.R_top_passive != null ? 1 - r.R_top_passive : null;
         r.T_bottom_passive = r.R_bottom_passive != null ? 1 - r.R_bottom_passive : null;
-        if (r.converged && Number.isFinite(r.wavelength)) guess = r.wavelength; else fails++;
+        if (r.converged && Number.isFinite(r.wavelength)) { guess = r.wavelength; if (r.retune_scale) tguess = r.retune_scale; } else fails++;
       }
       res[i] = { x, r }; cv.pts = res.filter(Boolean).sort((a, b) => a.x - b.x);
       done++;

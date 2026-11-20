@@ -124,7 +124,7 @@ def sweep_point(design_json, options_json="{}"):
                     raise ValueError("no re-tune layers")
             else:
                 layers, _ = _rt.tuning_layers(s, o.get("exclude") or [])
-            t = _rt.tune_layers(s, layers, s.design_wavelength)
+            t = _rt.tune_layers(s, layers, s.design_wavelength, start=float(o.get("retune_start") or 1.0))
             if not t["converged"]:
                 raise ValueError(f"re-tuning to {s.design_wavelength:g} nm failed")
             ids = {id(L) for L in layers}
