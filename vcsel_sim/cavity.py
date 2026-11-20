@@ -140,7 +140,11 @@ def cavity_report(model, analysis):
     for mrep in (top, bot):
         if mrep and "error" not in mrep:
             Lcav += mrep["moved_to_cavity_nm"]
-    rep = {"top": top, "bottom": bot, "L_cav": Lcav, "L_a": analysis.active_thickness}
+    ns = model.indices(lam, 0.0)
+    nd = sum(float(np.real(np.atleast_1d(ns[j + 1])[0])) * float(model.d[j]) for j in range(lo, hi))
+    rep = {"top": top, "bottom": bot, "L_cav": Lcav, "L_a": analysis.active_thickness,
+           # optical thickness of everything between the two DBR groups, in waves at the lasing wavelength
+           "L_cav_between": float(model.d[lo:hi].sum()), "cavity_optical_waves": nd / lam}
     ok_t = top is not None and "error" not in top
     ok_b = bot is not None and "error" not in bot
     rep["complete"] = ok_t and ok_b

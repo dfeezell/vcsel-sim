@@ -110,7 +110,7 @@ def reflectance(design_json, options_json="{}"):
         for p in parts:
             try:
                 spec = laser.reflectance_spectrum(s, lo, hi, int(o.get("points", 2001)), p)
-                st = laser.stopband(spec)
+                st = laser.stopband(spec, float(o.get("threshold", 0.99)), lam0)
                 try:
                     at = laser.reflectance_spectrum(s, lam0, lam0, 1, p)
                     at_d = {"R": float(at["R"][0]), "T": float(at["T"][0]), "phase_deg": float(at["phase_deg"][0])}
@@ -262,7 +262,7 @@ def dbr_design(options_json):
         lo = float(o.get("lambda_min", lam0 * 0.8))
         hi = float(o.get("lambda_max", lam0 * 1.2))
         spec = laser.reflectance_spectrum(s, lo, hi, int(o.get("points", 2001)), "full_top")
-        st = laser.stopband(spec)
+        st = laser.stopband(spec, float(o.get("threshold", 0.99)), lam0)
         at = laser.reflectance_spectrum(s, lam0, lam0, 1, "full_top")
         nB = float(np.real(np.atleast_1d(B.index(lam0))[0]))
         nA = float(np.real(np.atleast_1d(A.index(lam0))[0]))

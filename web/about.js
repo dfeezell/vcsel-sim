@@ -7,7 +7,7 @@ multi-quantum-well active regions are groups, so changing the number of mirror p
 Give the mirror groups the role <i>Top DBR</i> / <i>Bottom DBR</i>, and set <i>Layer type = active</i> on the gain layers (the wells).</p>
 <p>Thickness can be entered in <b>nm</b> or in <b>waves</b>, meaning optical thickness <span class="eq">n(λ<sub>design</sub>) · d / λ<sub>design</sub></span>
 so a quarter-wave layer is 0.25. Changing the design wavelength rescales every layer given in waves; layers given in nm stay fixed, as in Vertical.</p>
-<p>Every edit re-runs the analysis automatically. The design is kept in your browser between visits. Use <b>File → Save</b> to keep a copy and share it.
+<p>Every edit re-runs the analysis automatically. <b>↶ Undo</b> / <b>↷ Redo</b> in the toolbar (Ctrl+Z / Ctrl+Y outside text boxes) step back and forward through changes to the design. The design is kept in your browser between visits. Use <b>File → Save</b> to keep a copy and share it.
 <b>File → Open</b> also reads old Vertical <code>.vrt</code> files.</p>
 
 <h2>Method</h2>
@@ -32,19 +32,20 @@ This defines the effective cavity length L = Γ<sub>enh</sub> L<sub>a</sub>/Γ. 
 The linear forms are the definitions in the course notes (“Vertical Gain and Loss Definitions”), with R<sub>up/down</sub> = exp(−RT transmission up/down); the exact forms use R<sub>up/down</sub> = 1 − RT transmission up/down. The photon lifetime is the stored energy, (ε<sub>0</sub>/2)∫ n n<sub>g</sub> |E|² dz with the group index n<sub>g</sub> of each layer, divided by the power lost to absorption and output. In both cases
 the external differential efficiency is η<sub>d</sub> = η<sub>i</sub> × RT transmission / RT gain (slope efficiency η<sub>d</sub> hν/q in W/A).</p>
 <h3>Cavity length, penetration depth and confinement (course notes)</h3>
-<p>The Results tab also follows the ECE 577 notes (“Vertical Gain and Loss Definitions”) and Coldren &amp; Corzine Appendix 7.
+<p>The main Results table reports the physical length and the optical thickness Σ n d / λ<sub>las</sub> of the cavity (all layers between the Top DBR and
+Bottom DBR groups; 1.0 is a one-wavelength cavity). A collapsed section at the end of the table, <i>Hand-calculation cross-check</i>, also follows the ECE 577 notes (“Vertical Gain and Loss Definitions”) and Coldren &amp; Corzine Appendix 7.
 Coldren &amp; Corzine give the penetration depth of a quarter-wave mirror in closed form</p>
 <span class="eq">m<sub>eff</sub> = tanh[m ln(n<sub>2</sub>/n<sub>1</sub>)] / tanh[ln(n<sub>2</sub>/n<sub>1</sub>)],   L<sub>eff</sub> = ½ m<sub>eff</sub> Λ [1/(1+r²) − 1/(2m<sub>eff</sub>)]</span>
 <p>measured from the first low-index layer. A7.25 is exact, but it measures the phase delay of a wave travelling at the mirror's average index
 n̄ = λ/2Λ. Measured in the cavity medium next to the mirror instead, the same delay corresponds to a length shorter by n̄/n<sub>cav</sub>
 (about 9% for AlAs/GaAs mirrors next to GaAs). For comparison the Results tab also lists depths taken from the computed
 reflection phase, ½|dφ/dβ| with β = 2πn<sub>cav</sub>/λ, which also cover mirrors that are not ideal quarter-wave stacks or that start with a
-low-index layer next to a lower-index cavity. The exact, energy-weighted Γ further down the table needs no penetration depth at all.
+low-index layer next to a lower-index cavity. The exact, energy-weighted Γ in the Confinement section needs no penetration depth at all.
 A high-index mirror layer that touches the cavity is counted in the cavity. The effective length is then
 <span class="eq">L = L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>,   Γ = Γ<sub>enh</sub> L<sub>a</sub> / L</span>
-from which the modal gain, ⟨α<sub>i</sub>⟩, α<sub>m</sub>, R<sub>up</sub>, R<sub>down</sub> and the cavity optical thickness χ = L n<sub>eff</sub>/λ<sub>0</sub> follow.
+from which the modal gain, ⟨α<sub>i</sub>⟩, α<sub>m</sub>, R<sub>up</sub>, R<sub>down</sub> and the effective optical length χ = L n<sub>eff</sub>/λ<sub>0</sub> (cavity plus penetration depths) follow.
 The Ch. 3 approximations (tanh(2mr)/2κ, Λ/4r, λ/4Δn) are shown in the mirror table for comparison.
-This Γ is not the same quantity as the energy-weighted Γ further down the table. The two can differ by 10–20%.</p>
+This Γ is not the same quantity as the energy-weighted Γ in the main table. The two can differ by 10–20%, because the penetration-depth model replaces each mirror by a hard wall at L<sub>eff</sub>. Use it to check hand calculations; use the main table for design.</p>
 <h3>Linear or exact round-trip conversion</h3>
 <p>The transfer-matrix solve gives the threshold gain and the round-trip fractions exactly. Turning those fractions into losses per length
 and mirror reflectances can be done two ways, chosen on the Results tab:</p>
@@ -54,15 +55,29 @@ and mirror reflectances can be done two ways, chosen on the Results tab:</p>
 and the peak |E|² is refined inside its layer, so the results do not depend on the sampling. The Vertical column always uses Vertical's 0.1 nm rule.</p>
 <h3>DBR design tab</h3>
 <p>Designs a quarter-wave mirror on its own. Choose the incident medium, the two layers and the exit medium, and set the number of pairs.
-The tab shows the spectrum, R at λ<sub>0</sub> (transfer matrix and analytic), the stopband width, the penetration depth, and how many pairs reach a target reflectance.
-<b>Insert into stack</b> adds the mirror to the design as a group.</p>
+The tab shows the spectrum, R at λ<sub>0</sub> (transfer matrix and analytic), the stopband width, the penetration depth, R (or 1 − R) versus the number of pairs, and how many pairs reach a target reflectance.
+The <b>stopband</b> is the continuous band around λ<sub>0</sub> with R ≥ 99% (the usual VCSEL convention; the threshold can be changed). It is zero until the mirror reaches 99% and widens with more pairs toward the
+infinite-stack width (4λ<sub>0</sub>/π) arcsin[(n<sub>2</sub> − n<sub>1</sub>)/(n<sub>2</sub> + n<sub>1</sub>)], which is shown next to it.
+<b>Insert into stack</b> adds the mirror to the design. As <i>Bottom DBR</i> or <i>Top DBR</i> it replaces the stack's existing bottom or top mirror group (or goes directly above the substrate / below the exit medium if there is none);
+as a plain group it goes below the selected item. Undo restores the previous stack.</p>
 <h3>Mirror reflectance</h3>
 <p>Reflectance spectra are computed for the <b>passive, as-grown</b> structure: active layers carry no gain. There is therefore no lasing pole and no
 huge spike at the cavity wavelength. “Top DBR (from cavity)” is the reflectance of everything above the cavity, seen from the cavity layer next to the mirror.
-“Bottom DBR (from cavity)” is everything below it, ending in the substrate. The whole-wafer views are what a reflectometer measures from the top or through the substrate.</p>
+“Bottom DBR (from cavity)” is everything below it, ending in the substrate. The whole-wafer views are what a reflectometer measures from the top or through the substrate. Where the incident medium itself absorbs strongly
+(a GaAs substrate below about 870 nm), reflectance seen from inside it is not defined, and that part of the spectrum is left blank.</p>
+<p>The table gives R<sub>max</sub> and where it occurs, and the R ≥ 99% stopband with its center (for whole-wafer spectra the narrow cavity dip is bridged).
+The top of a stopband is very flat, so λ at R<sub>max</sub> can lie several nm from the design wavelength when the two mirror materials absorb differently:
+the standing wave sits mainly in the low-index layers at the short-wavelength side of the band and in the high-index layers at the long-wavelength side.
+The stopband center is the better measure of where a mirror is centered, and the laser locks to the cavity resonance, not to R<sub>max</sub>.</p>
 <h3>Cavity tuning (Vertical's Marks / Force Wave)</h3>
 <p>Tick <i>Marked</i> on the layers that may change (for example the two cavity spacers), then press <b>Tune cavity</b>. All marked thicknesses are scaled by a
 common factor until the cold-cavity resonance falls exactly on the design wavelength.</p>
+
+<h3>Materials tab</h3>
+<p>Plots n and k of any material versus wavelength, with the band gap marked, and gives n, k (and α = 4πk/λ) at one wavelength typed in the <i>n, k at λ</i> box.
+The table lists the model and reference used for every material.
+Note that the default AlGaAs model (Afromowitz) has a logarithmic term that gives n a sharp cusp exactly at the direct gap and k a step from zero.
+Real material has a rounded edge, so features within a few nm of a GaAs or AlGaAs band edge are exaggerated. Below the gap, where VCSEL mirrors and cavities operate, the cusp has no effect; for the most accurate below-gap AlGaAs indices use the Gehrsitz model.</p>
 
 <h2>Comparison with Vertical</h2>
 <p>For the ECE 577 final-project structure, imported directly from its <code>.vrt</code> file, this program gives the same threshold gain and lasing wavelength as

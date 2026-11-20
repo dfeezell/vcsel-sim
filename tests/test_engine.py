@@ -229,3 +229,14 @@ def test_n_inp_walukiewicz():
     assert abs(float(fca.sigma("InP", "n", 10000.0, N=1e18)) * 1e18 - 74.93) < 0.05
     s = float(fca.sigma("InGaAsP", "n", 1550.0, N=1e18))
     assert 0.6e-18 < s < 0.8e-18
+
+
+def test_stopband_threshold_grows_with_pairs():
+    import json
+    from vcsel_sim import api
+    w = []
+    for m in (10, 20, 30):
+        o = {"lambda0": 980, "pairs": m, "first": {"material": "AlGaAs", "x": 0.9}, "second": {"material": "AlGaAs", "x": 0},
+             "incident": {"material": "AlGaAs", "x": 0}, "exit": {"material": "AlGaAs", "x": 0}, "points": 2001}
+        w.append(json.loads(api.dbr_design(json.dumps(o)))["stopband"]["width_nm"])
+    assert w[0] == 0 and 0 < w[1] < w[2] < 99.4

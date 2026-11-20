@@ -547,19 +547,56 @@ def reflectance_spectrum(structure: Structure, lam_min, lam_max, points=1001, pa
             "phase_deg": np.degrees(np.angle(r)), "r": r, "undefined": bad}
 
 
-def stopband(spec):
-    """Peak reflectance, its wavelength, and the -3 dB-of-peak (half max) stopband edges."""
+def stopband(spec, threshold=0.99, lam0=None):
+    """Peak reflectance and its wavelength, plus the stopband defined as the continuous band with
+    R >= threshold (default 99 %, the usual VCSEL convention) that contains lam0 (or the peak when
+    R(lam0) < threshold). Edges are interpolated linearly between grid points. If the peak stays below
+    the threshold, the edges are None and the width is 0. The -3 dB (half-of-peak) band is also returned."""
     lam, R = spec["wavelength"], np.nan_to_num(spec["R"], nan=0.0)
     i = int(np.argmax(R))
-    half = R[i] / 2 if R[i] > 0 else 0
-    lo = i
-    while lo > 0 and R[lo] > half:
-        lo -= 1
-    hi = i
-    while hi < len(R) - 1 and R[hi] > half:
-        hi += 1
-    return {"R_max": float(R[i]), "lambda_at_max": float(lam[i]), "edge_short": float(lam[lo]),
-            "edge_long": float(lam[hi]), "width_nm": float(lam[hi] - lam[lo])}
+    out = {"R_max": float(R[i]), "lambda_at_max": float(lam[i]), "threshold": float(threshold)}
+
+    def band(level, k):
+        lo = k
+        while lo > 0 and R[lo - 1] >= level:
+            lo -= 1
+        hi = k
+        while hi < len(R) - 1 and R[hi + 1] >= level:
+            hi += 1
+
+        def cross(a, b):                       # linear interpolation of R = level between points a, b
+            if a == b or R[a] == R[b]:
+                return float(lam[b])
+            return float(lam[a] + (level - R[a]) * (lam[b] - lam[a]) / (R[b] - R[a]))
+        e1 = cross(lo - 1, lo) if lo > 0 else float(lam[lo])
+        e2 = cross(hi + 1, hi) if hi < len(R) - 1 else float(lam[hi])
+        return e1, e2
+
+    k = i
+    if lam0 is not None and lam[0] <= lam0 <= lam[-1]:
+        j = int(np.argmin(np.abs(lam - lam0)))
+        if R[j] >= threshold:
+            k = j
+        else:
+            # a narrow dip at lam0 (the cavity resonance seen through a whole wafer) splits the band:
+            # join the two halves if both start within 3 % of lam0
+            left = np.where((R[:j] >= threshold) & (lam[:j] >= lam0 * 0.97))[0]
+            right = np.where((R[j:] >= threshold) & (lam[j:] <= lam0 * 1.03))[0]
+            if len(left) and len(right):
+                a1, _ = band(threshold, int(left[-1]))
+                _, b2 = band(threshold, int(j + right[0]))
+                out.update(edge_short=a1, edge_long=b2, width_nm=b2 - a1, center=(a1 + b2) / 2, split_by_dip=True)
+                h1, h2 = band(R[i] / 2, i) if R[i] > 0 else (float(lam[i]), float(lam[i]))
+                out.update(half_short=h1, half_long=h2, half_width_nm=h2 - h1, half_center=(h1 + h2) / 2)
+                return out
+    if R[k] >= threshold:
+        e1, e2 = band(threshold, k)
+        out.update(edge_short=e1, edge_long=e2, width_nm=e2 - e1, center=(e1 + e2) / 2)
+    else:
+        out.update(edge_short=None, edge_long=None, width_nm=0.0, center=None)
+    h1, h2 = band(R[i] / 2, i) if R[i] > 0 else (float(lam[i]), float(lam[i]))
+    out.update(half_short=h1, half_long=h2, half_width_nm=h2 - h1, half_center=(h1 + h2) / 2)
+    return out
 
 
 # ---------------------------------------------------------------------------

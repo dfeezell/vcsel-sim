@@ -133,8 +133,40 @@ function loadTemplate(name) {
 
 /* ------------------------------------------------------------------ change propagation */
 const persist = debounce(() => { try { localStorage.setItem("vcsel-design", designJSON()); } catch (e) { /* ignore */ } }, 500);
+const HIST = { list: [], i: -1, busy: false, max: 200 };
+function snapshot() {
+  if (HIST.busy || !S.design) return;
+  const js = designJSON();
+  if (HIST.list[HIST.i] === js) return;
+  HIST.list = HIST.list.slice(0, HIST.i + 1); HIST.list.push(js);
+  if (HIST.list.length > HIST.max) HIST.list.shift();
+  HIST.i = HIST.list.length - 1; histButtons();
+}
+function histButtons() { $("#btn-undo").disabled = HIST.i <= 0; $("#btn-redo").disabled = HIST.i >= HIST.list.length - 1; }
+function histGo(step) {
+  const j = HIST.i + step; if (j < 0 || j >= HIST.list.length) return;
+  HIST.i = j; HIST.busy = true;
+  const sel = S.sel;
+  try {
+    const d = JSON.parse(HIST.list[j]); S.design = d; tagIds(d.stack);
+    $("#design-lambda").value = d.design_wavelength; $("#design-temp").value = d.temperature ?? 23;
+    $("#design-name").textContent = d.name || "Untitled";
+    S.sel = getAt(sel) ? sel : (d.stack.length ? ["stack", 0] : ["top"]);
+    changed();
+  } finally { HIST.busy = false; }
+  histButtons();
+}
+$("#btn-undo").addEventListener("click", () => histGo(-1));
+$("#btn-redo").addEventListener("click", () => histGo(1));
+document.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const t = e.target; if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;   // keep native text undo
+  const k = e.key.toLowerCase();
+  if (k === "z" && !e.shiftKey) { e.preventDefault(); histGo(-1); }
+  else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); histGo(1); }
+});
 function changed(rerun = true) {
-  S.dirty = true;
+  S.dirty = true; snapshot();
   try { S.nodeInfo = call("node_info", designJSON()); } catch (e) { S.nodeInfo = null; toast(e.message, true); }
   renderStack(); renderProps(); persist();
   if (rerun) autoRun();
@@ -524,7 +556,7 @@ function runRefl() {
   if (!S.design) return;
   const parts = $$(".r-part:checked").map((c) => c.value);
   if (!parts.length) { toast("Pick at least one spectrum."); return; }
-  const opts = { lambda_min: +$("#r-min").value, lambda_max: +$("#r-max").value, points: +$("#r-pts").value, parts };
+  const opts = { lambda_min: +$("#r-min").value, lambda_max: +$("#r-max").value, points: +$("#r-pts").value, parts, threshold: stopThr("#r-thr") };
   try { S.refl = call("reflectance", designJSON(), JSON.stringify(opts)); } catch (e) { toast(e.message, true); return; }
   plotRefl();
 }
@@ -541,13 +573,15 @@ function plotRefl() {
       line: { color: PART_COLOR[p], width: 1.2, dash: mode === "both" ? "dot" : "solid" }, hovertemplate: "φ = %{y:.2f}°<extra></extra>" });
   }
   const yt = { R: "Reflectance R", T: "Transmission T", loss: "1 − R", phase: "Phase of r (deg)", both: "Reflectance R" }[mode];
+  const nTr = traces.filter((t) => t.showlegend !== false).length;
   const layout = {
-    font: PLOT_FONT, margin: { l: 70, r: mode === "both" ? 70 : 24, t: 36, b: 56 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
+    // legend under the x-axis title, so it never overlaps the curves however many spectra are shown
+    font: PLOT_FONT, margin: { l: 70, r: mode === "both" ? 70 : 24, t: 20, b: nTr > 1 ? 104 : 56 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff", showlegend: nTr > 1,
     xaxis: { title: { text: "Wavelength (nm)" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false },
     yaxis: { title: { text: yt }, showline: true, mirror: mode !== "both", linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false,
       type: mode === "loss" ? "log" : "linear", range: mode === "R" || mode === "both" ? [0, 1.02] : undefined, exponentformat: "power" },
     yaxis2: { title: { text: "Phase (deg, dotted)" }, overlaying: "y", side: "right", showgrid: false, range: [-180, 180], showline: true, linecolor: "#444", ticks: "outside" },
-    legend: { orientation: "h", x: 0, y: 1.08 },
+    legend: { orientation: "h", x: 0, xanchor: "left", y: -0.2, yanchor: "top" },
     shapes: [{ type: "line", x0: R.design_wavelength, x1: R.design_wavelength, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],
     // spectra that could not be computed: say why right on the plot, not only in the table below
     annotations: errs.map((e, i) => ({ xref: "paper", yref: "paper", x: 0.5, y: 0.5 - i * 0.16, showarrow: false, align: "center", width: 520,
@@ -556,12 +590,20 @@ function plotRefl() {
   Plotly.react($("#plot-refl"), traces, layout, PLOT_CONFIG);
   const rows = Object.entries(R.spectra).filter(([, sp]) => !sp.error).map(([p, sp]) => `<tr><td><span class="sw" style="display:inline-block;background:${PART_COLOR[p]}"></span> ${PART_LABEL[p]}</td>
     <td class="n">${fmt(sp.at_design.R, 7)}</td><td class="n">${fmt(sp.at_design.phase_deg, 4)}</td><td class="n">${fmt(sp.at_design.T, 4)}</td>
-    <td class="n">${fmt(sp.stopband.R_max, 7)}</td><td class="n">${fmt(sp.stopband.lambda_at_max, 6)}</td><td class="n">${fmt(sp.stopband.edge_short, 5)} – ${fmt(sp.stopband.edge_long, 5)}</td><td class="n">${fmt(sp.stopband.width_nm, 4)}</td></tr>`);
-  $("#refl-table").innerHTML = `<table class="t"><thead><tr><th>Spectrum</th><th class="r">R at λ<sub>design</sub></th><th class="r">phase (°)</th><th class="r">T at λ<sub>design</sub></th><th class="r">R<sub>max</sub></th><th class="r">λ at R<sub>max</sub> (nm)</th><th class="r">half-max band (nm)</th><th class="r">width (nm)</th></tr></thead><tbody>${rows.join("")}</tbody></table>
+    <td class="n">${fmt(sp.stopband.R_max, 7)}</td><td class="n">${fmt(sp.stopband.lambda_at_max, 6)}</td>${stopCells(sp.stopband)}</tr>`);
+  const thr = R.spectra && Object.values(R.spectra).find((s) => s.stopband)?.stopband.threshold;
+  $("#refl-table").innerHTML = `<table class="t"><thead><tr><th>Spectrum</th><th class="r">R at λ<sub>design</sub></th><th class="r">phase (°)</th><th class="r">T at λ<sub>design</sub></th><th class="r">R<sub>max</sub></th><th class="r">λ at R<sub>max</sub> (nm)</th><th class="r">stopband, R ≥ ${thr ?? 0.99} (nm)</th><th class="r">width (nm)</th><th class="r">center (nm)</th></tr></thead><tbody>${rows.join("")}</tbody></table>
+    <p class="note">The top of a DBR stopband is very flat, so λ at R<sub>max</sub> can sit several nm from the design wavelength when the two mirror materials absorb differently (the standing wave moves from the low-index layers on the short-wavelength side to the high-index layers on the long side). The stopband center is the better measure of where the mirror is centered.</p>
     ${notes.map((e) => `<p class="note">${esc(e)}</p>`).join("")}${errs.map((e) => `<p class="note" style="color:var(--warn)">${esc(e)}</p>`).join("")}`;
 }
 $("#btn-refl").addEventListener("click", runRefl);
 $("#r-mode").addEventListener("change", plotRefl);
+$("#r-thr").addEventListener("change", runRefl);
+function stopThr(sel) { const v = parseFloat($(sel).value); return Number.isFinite(v) && v > 0 && v < 1 ? v : 0.99; }
+function stopCells(st) {
+  if (st.edge_short == null) return `<td class="n" colspan="3">R stays below ${st.threshold}</td>`;
+  return `<td class="n">${fmt(st.edge_short, 5)} – ${fmt(st.edge_long, 5)}</td><td class="n">${fmt(st.width_nm, 4)}</td><td class="n">${fmt(st.center, 5)}</td>`;
+}
 $$(".r-part").forEach((c) => c.addEventListener("change", runRefl));
 
 /* ------------------------------------------------------------------ results table */
@@ -584,7 +626,9 @@ const RES = [
     ["active_thickness", "Active thickness L<sub>a</sub>", "nm", "sum of active layers", "active thickness (nm)"],
     ["enhancement", "Gain enhancement Γ<sub>enh</sub>", "", "⟨|E|²⟩ over active ÷ local standing-wave mean", "gain enhancement"],
     ["confinement", "Confinement Γ (energy-weighted)", "", "∫<sub>a</sub> n²|E|² ÷ ∫<sub>stack</sub> n²|E|²; the course-notes Γ = Γ<sub>enh</sub>L<sub>a</sub>/L is further up"],
-    ["effective_length", "Effective cavity length L (energy-based)", "nm", "Γ<sub>enh</sub> L<sub>a</sub> / Γ(energy-weighted)"]]],
+    ["effective_length", "Effective cavity length L (energy-based)", "nm", "Γ<sub>enh</sub> L<sub>a</sub> / Γ(energy-weighted)"],
+    ["@L_cav_between", "Cavity length (between the DBRs)", "nm", "physical thickness of all layers between the Top DBR and Bottom DBR groups"],
+    ["@cavity_optical_waves", "Cavity optical thickness", "λ", "Σ n d / λ<sub>las</sub> over the layers between the DBR groups (1 = one-wavelength cavity)"]]],
   ["Efficiency", [
     ["internal_efficiency", "Internal efficiency η<sub>i</sub>", "", "input"],
     ["ext_eff", "External differential efficiency", "", "η<sub>i</sub> × RT transmission / RT gain", "external efficiency"],
@@ -598,7 +642,8 @@ const RES = [
 ];
 function cavityRows(C, showV) {
   const span = showV ? 5 : 4;
-  let h = `<tr class="sec"><td colspan="${span}">Cavity length and confinement (course notes, Coldren &amp; Corzine App. 7)</td></tr>`;
+  let h = `<tr class="sec course-toggle" title="Click to show or hide"><td colspan="${span}">${S.showCourse ? "▾" : "▸"} Hand-calculation cross-check: penetration-depth model (course notes, Coldren &amp; Corzine App. 7)</td></tr>`;
+  if (!S.showCourse) return h + `<tr><td colspan="${span}" class="def">The textbook estimate L = L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>, Γ = Γ<sub>enh</sub>L<sub>a</sub>/L, used to check hand calculations. It differs from the exact values in this table because it replaces the mirrors by penetration depths; the exact values come from the computed field. Click the heading to show it.</td></tr>`;
   if (!C || !C.complete) return h + `<tr><td colspan="${span}" class="def">${esc(C?.note || "Not available.")}</td></tr>`;
   // course-notes model with Coldren A7.25 depths; the depths from the computed mirror phase are the check row
   const K = C.coldren, KV = C.coldren_vertical_enh || {}, P = C.phase || {};
@@ -630,12 +675,14 @@ function renderResults() {
   for (const [sec, rows] of RES) {
     h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">${sec}</td></tr>`;
     for (const [key, label, unit, def, vkey] of rows) {
-      h += `<tr><td>${label}</td><td class="n">${fmt(r[key], 6)}</td><td>${unit || ""}</td>${showV ? `<td class="n">${vkey && V[vkey] !== undefined ? fmt(V[vkey], 6) : ""}</td>` : ""}<td class="def">${def || ""}</td></tr>`;
+      const val = key.startsWith("@") ? r.cavity?.[key.slice(1)] : r[key];
+      if (key.startsWith("@") && val == null) continue;
+      h += `<tr><td>${label}</td><td class="n">${fmt(val, 6)}</td><td>${unit || ""}</td>${showV ? `<td class="n">${vkey && V[vkey] !== undefined ? fmt(V[vkey], 6) : ""}</td>` : ""}<td class="def">${def || ""}</td></tr>`;
     }
-    if (sec.startsWith("Round-trip budget")) h += cavityRows(r.cavity, showV);
   }
   h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">Internal loss by region (fraction per round trip)</td></tr>`;
   for (const b of r.loss_breakdown) h += `<tr><td>${esc(b.region)}</td><td class="n">${fmt(b.rt_loss, 5)}</td><td></td>${showV ? "<td></td>" : ""}<td class="def">${fmt(b.alpha_cm, 4)} cm⁻¹ of α<sub>i</sub></td></tr>`;
+  h += cavityRows(r.cavity, showV);
   h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">Transfer matrix at λ<sub>las</sub> (characteristic [E,H] matrix, substrate → top)</td></tr>`;
   ["m11", "m12", "m21", "m22"].forEach((m, i) => {
     const c = r.matrix[i], cv = r.matrix_vertical[i];
@@ -645,6 +692,7 @@ function renderResults() {
   el.innerHTML = h;
 }
 $("#res-vertical").addEventListener("change", renderResults);
+$("#results").addEventListener("click", (e) => { if (e.target.closest(".course-toggle")) { S.showCourse = !S.showCourse; renderResults(); } });
 $("#rt-model").addEventListener("change", () => { runAnalysis(false); persistOpts(); });
 ["#f-sp-p", "#f-sp-a"].forEach((sel) => $(sel).addEventListener("change", () => { runAnalysis(false); persistOpts(); }));
 function persistOpts() { try { localStorage.setItem("vcsel-sim-opts-v2", JSON.stringify({ rt: $("#rt-model").value, sp: $("#f-sp-p").value, sa: $("#f-sp-a").value })); } catch (_) { /* */ } }
@@ -666,7 +714,7 @@ function initMaterialsTab() {
   const refs = S.materials.map((m) => `<tr><td><b>${esc(m.label)}</b></td><td>${esc(m.category)}</td><td>${esc(m.reference)}</td><td class="def">${esc(m.notes || "")}</td></tr>`).join("");
   $("#mat-refs").innerHTML = `<table class="t"><thead><tr><th>Material</th><th>Family</th><th>Model / reference</th><th>Notes</th></tr></thead><tbody>${refs}</tbody></table>
   <p class="note">Any layer can instead use a fixed n, k (Index source → Fixed), e.g. to enter a measured value. Indices imported from Vertical .vrt files are fixed at the values stored in the file.</p>`;
-  ["#m-mat", "#m-x", "#m-y", "#m-min", "#m-max"].forEach((s) => $(s).addEventListener("change", plotMaterial));
+  ["#m-mat", "#m-x", "#m-y", "#m-min", "#m-max", "#m-at"].forEach((s) => $(s).addEventListener("change", plotMaterial));
   plotMaterial();
 }
 function plotMaterial() {
@@ -677,11 +725,22 @@ function plotMaterial() {
   const tr = [{ x: r.wavelength, y: r.n, name: "n", line: { color: "#1f5fae", width: 2 } }];
   if (r.k.some((v) => v > 1e-9)) tr.push({ x: r.wavelength, y: r.k, name: "k", yaxis: "y2", line: { color: "#d9480f", width: 2, dash: "dot" } });
   const shapes = r.bandgap ? [{ type: "line", x0: 1239.842 / r.bandgap, x1: 1239.842 / r.bandgap, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", dash: "dash", width: 1 } }] : [];
-  Plotly.react($("#plot-mat"), tr, { font: PLOT_FONT, margin: { l: 64, r: 64, t: 30, b: 50 }, title: { text: `${esc(m.label)}${m.x_label ? `, ${m.x_label} = ${$("#m-x").value}` : ""}${r.bandgap ? ` — E<sub>g</sub> = ${r.bandgap.toFixed(3)} eV` : ""}`, font: { size: 13 }, x: 0.01, xanchor: "left" },
+  const cv = (lbl, v) => { const [sym, ...rest] = lbl.trim().split(/\s+/); return `${sym} = ${fmt(v, 4)}${rest.length ? " " + rest.join(" ") : ""}`; };
+  const comp = [m.x_label ? cv(m.x_label, +$("#m-x").value) : "", m.y_label ? cv(m.y_label, +$("#m-y").value) : ""].filter(Boolean).join(", ");
+  const title = `${esc(m.label)}${comp ? `,&nbsp; ${comp}` : ""}${r.bandgap ? `;&nbsp;&nbsp;band gap E<sub>g</sub> = ${r.bandgap.toFixed(3)} eV (${(1239.842 / r.bandgap).toFixed(1)} nm, dashed line)` : ""}`;
+  const at = parseFloat($("#m-at").value);
+  if (Number.isFinite(at) && at > 0) {
+    try {
+      const q = call("material_index", key, +$("#m-x").value, +$("#m-y").value, at, at, 1, S.design?.temperature ?? 23);
+      const n = q.n[0], k = q.k[0];
+      $("#m-at-out").innerHTML = `n = <b>${fmt(n, 6)}</b>, k = <b>${fmt(k, 4)}</b>${k > 0 ? `, α = 4πk/λ = <b>${fmt(4 * Math.PI * k / (at * 1e-7), 4)}</b> cm⁻¹` : ""}`;
+    } catch (e) { $("#m-at-out").textContent = e.message; }
+  } else $("#m-at-out").textContent = "";
+  Plotly.react($("#plot-mat"), tr, { font: PLOT_FONT, margin: { l: 64, r: 64, t: 30, b: 50 }, title: { text: title, font: { size: 13 }, x: 0.01, xanchor: "left" },
     xaxis: { title: { text: "Wavelength (nm)" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
     yaxis: { title: { text: "n" }, showline: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
     yaxis2: { title: { text: "k" }, overlaying: "y", side: "right", showgrid: false, zeroline: false, showline: true, linecolor: "#444", ticks: "outside" },
-    legend: { orientation: "h", x: 0.75, y: 1.1 }, shapes }, PLOT_CONFIG);
+    legend: { x: 0.98, xanchor: "right", y: 0.97, yanchor: "top", bgcolor: "rgba(255,255,255,0.85)", bordercolor: "#ced4da", borderwidth: 1 }, shapes }, PLOT_CONFIG);
 }
 
 
@@ -696,7 +755,8 @@ function initDbrTab() {
     w.querySelector(".dbr-x").addEventListener("change", runDbr);
     dbrSyncX(w);
   });
-  ["#dbr-lam", "#dbr-pairs", "#dbr-min", "#dbr-max"].forEach((sel) => $(sel).addEventListener("change", runDbr));
+  ["#dbr-lam", "#dbr-pairs", "#dbr-min", "#dbr-max", "#dbr-thr"].forEach((sel) => $(sel).addEventListener("change", runDbr));
+  $("#dbr-pairs-mode").addEventListener("change", plotDbr);
   $("#dbr-mode").addEventListener("change", plotDbr);
   $("#btn-dbr-swap").addEventListener("click", () => {
     const a = $('.dbr-medium[data-k="first"]'), b = $('.dbr-medium[data-k="second"]');
@@ -710,9 +770,19 @@ function initDbrTab() {
     if (!S.dbr) return;
     const g = JSON.parse(JSON.stringify(S.dbr.group)); g.role = $("#dbr-role").value;
     g.name = { bottom_dbr: "N-DBR", top_dbr: "P-DBR", none: "DBR" }[g.role];
-    stackAction("insert", g);
+    let what = "Inserted";
+    if (g.role === "none") stackAction("insert", g);
+    else {
+      // a mirror with a role goes where that mirror belongs: replace the existing one, else at the end of the stack
+      const st = S.design.stack; const i = st.findIndex((it) => it.kind === "group" && it.role === g.role);
+      tagIds([g]);
+      if (i >= 0) { g.name = st[i].name || g.name; st.splice(i, 1, g); S.sel = ["stack", i]; what = "Replaced the " + (g.role === "bottom_dbr" ? "bottom" : "top") + " DBR with"; }
+      else if (g.role === "bottom_dbr") { st.push(g); S.sel = ["stack", st.length - 1]; }
+      else { st.unshift(g); S.sel = ["stack", 0]; }
+      changed();
+    }
     const note = +$("#dbr-lam").value !== S.design.design_wavelength ? ` (layers are in waves, so in the stack they are quarter-wave at λdesign = ${S.design.design_wavelength} nm)` : "";
-    toast(`Inserted ${g.name}: ${g.repeats} pairs${note}`, false, 6000);
+    toast(`${what} ${g.name}: ${g.repeats} pairs${note}. Undo (Ctrl+Z) restores the previous stack.`, false, 6000);
   });
   $("#btn-dbr-csv").addEventListener("click", () => {
     if (!S.dbr) return;
@@ -729,6 +799,10 @@ function dbrSyncX(w) {
   x.style.display = m && (m.x_label || generic) ? "" : "none";
   x.title = generic ? "refractive index n" : (m && m.x_label) || "";
   x.placeholder = generic ? "n" : "x";
+  const xl = w.querySelector(".dbr-xl");
+  xl.style.display = x.style.display;
+  xl.textContent = generic ? "n =" : `${((m && m.x_label) || "x").trim().split(/\s/)[0]} =`;
+  xl.title = x.title;
   if (generic && +x.value < 1) x.value = 3.0;
 }
 function dbrSpec(k) {
@@ -743,7 +817,7 @@ function runDbr() {
   const lam = +$("#dbr-lam").value;
   if (!$("#dbr-min").value || !$("#dbr-max").value) { $("#dbr-min").value = Math.round(lam * 0.8); $("#dbr-max").value = Math.round(lam * 1.2); }
   const o = { lambda0: lam, pairs: +$("#dbr-pairs").value, first: dbrSpec("first"), second: dbrSpec("second"), incident: dbrSpec("incident"), exit: dbrSpec("exit"),
-    lambda_min: +$("#dbr-min").value, lambda_max: +$("#dbr-max").value, points: 2001, temperature: S.design?.temperature ?? 23 };
+    lambda_min: +$("#dbr-min").value, lambda_max: +$("#dbr-max").value, points: 2001, temperature: S.design?.temperature ?? 23, threshold: stopThr("#dbr-thr") };
   try { S.dbr = call("dbr_design", JSON.stringify(o)); } catch (e) { S.dbr = null; toast(e.message, true); return; }
   plotDbr();
 }
@@ -763,7 +837,7 @@ function plotDbr() {
   $("#dbr-kpis").innerHTML = [
     kpi("R at λ<sub>0</sub> (TMM / analytic)", `${fmt(D.at_design.R, 7)} / ${fmt(D.R_analytic, 7)}`),
     kpi("1 − R at λ<sub>0</sub>", fmt(1 - D.at_design.R, 4)),
-    kpi("Stopband (half max / analytic)", `${fmt(D.stopband.width_nm, 4)} / ${fmt(D.stopband_analytic, 4)}`, "nm"),
+    kpi(`Stopband R ≥ ${D.stopband.threshold} / infinite stack`, `${D.stopband.edge_short == null ? "none" : fmt(D.stopband.width_nm, 4)} / ${fmt(D.stopband_analytic, 4)}`, "nm"),
     kpi("n<sub>1</sub> / n<sub>2</sub> at λ<sub>0</sub>", `${fmt(D.n_first, 5)} / ${fmt(D.n_second, 5)}`),
     kpi("d<sub>1</sub> / d<sub>2</sub> (λ/4)", `${fmt(D.d_first, 5)} / ${fmt(D.d_second, 5)}`, "nm"),
     kpi("Period Λ / total", `${fmt(D.period, 5)} nm / ${fmt(D.total_thickness / 1000, 4)}`, "µm"),
@@ -775,11 +849,14 @@ function plotDbr() {
   $("#dbr-table").innerHTML = `<table class="t"><thead><tr><th>Target R at λ<sub>0</sub></th><th class="r">pairs needed</th></tr></thead><tbody>${
     need.map(([t, k]) => `<tr><td>${t}</td><td class="n">${k == null ? `more than ${D.R_vs_pairs.length}` : k}</td></tr>`).join("")}</tbody></table>`;
   const ks = D.R_vs_pairs.map((_, i) => i + 1);
-  Plotly.react($("#plot-dbr-pairs"), [{ x: ks, y: D.R_vs_pairs.map((r) => Math.max(1 - r, 1e-12)), type: "scatter", mode: "lines+markers", marker: { size: 4 }, line: { color: "#d9480f", width: 1.5 }, hovertemplate: "%{x} pairs: 1−R = %{y:.3g}<extra></extra>" }], {
+  const pm = $("#dbr-pairs-mode").value, lossP = pm === "loss";
+  Plotly.react($("#plot-dbr-pairs"), [{ x: ks, y: lossP ? D.R_vs_pairs.map((r) => Math.max(1 - r, 1e-12)) : D.R_vs_pairs, type: "scatter", mode: "lines+markers", marker: { size: 4 }, line: { color: "#d9480f", width: 1.5 },
+    hovertemplate: lossP ? "%{x} pairs: 1−R = %{y:.3g}<extra></extra>" : "%{x} pairs: R = %{y:.6f}<extra></extra>" }], {
     font: PLOT_FONT, margin: { l: 64, r: 16, t: 28, b: 46 }, showlegend: false, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
-    title: { text: "1 − R at λ<sub>0</sub> versus number of pairs", font: { size: 12 }, x: 0.01, xanchor: "left" },
+    title: { text: `${lossP ? "1 − R" : "R"} at λ<sub>0</sub> versus number of pairs`, font: { size: 12 }, x: 0.01, xanchor: "left" },
     xaxis: { title: { text: "pairs" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
-    yaxis: { type: "log", title: { text: "1 − R" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", exponentformat: "power" },
+    yaxis: lossP ? { type: "log", title: { text: "1 − R" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", exponentformat: "power" }
+      : { type: "linear", title: { text: "R" }, range: [0, 1.02], showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
     shapes: [{ type: "line", x0: +$("#dbr-pairs").value, x1: +$("#dbr-pairs").value, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],
   }, PLOT_CONFIG);
   renderDbrStructure();
