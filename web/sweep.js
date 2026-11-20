@@ -43,10 +43,11 @@ const SW_OUT = [
   ["L_pen_top", "Top DBR penetration depth", "nm"],
   ["L_pen_bottom", "Bottom DBR penetration depth", "nm"],
   ["total_thickness_um", "Total thickness", "µm"],
+  ["retune_scale", "Re-tune factor on the chosen layers", ""],
 ];
 const SW_LOGGY = new Set(["T_top_passive", "T_bottom_passive"]);
 const SW_COLORS = ["#1f5fae", "#d9480f", "#2b8a3e", "#862e9c", "#e67700", "#0b7285", "#c2255c", "#5c940d"];
-const SW = { running: false, stop: false, data: null };
+const SW = { running: false, stop: false, data: null, tune: null };   // tune: Set of JSON layer paths used for re-tuning
 
 /* ---- the design tree --------------------------------------------------- */
 function swAt(d, path) { let it = { children: d.stack }; for (const i of path) it = it.children[i]; return it; }
@@ -110,6 +111,19 @@ function swUnit(P, path) {
   return P.unit;
 }
 
+/* ---- re-tune layers ------------------------------------------------------ */
+// every layer of the design with its path (layers inside groups once, they change in every repeat)
+function swAllLayers() { return swTargets("layer").filter(([p]) => swAt(S.design, p).layer_type !== "metal"); }
+function swTuneList() {
+  const box = $("#sw-tune-list"); if (!box) return;
+  const all = swAllLayers(); const valid = new Set(all.map(([p]) => JSON.stringify(p)));
+  if (SW.tune) SW.tune = new Set([...SW.tune].filter((k) => valid.has(k)));
+  if (!SW.tune || !SW.tune.size) SW.tune = new Set(all.filter(([p]) => swAt(S.design, p).marked).map(([p]) => JSON.stringify(p)));
+  box.innerHTML = all.map(([p, l]) => { const k = JSON.stringify(p); const on = SW.tune.has(k);
+    return `<label class="${on ? "on" : ""}"><input type="checkbox" data-k="${esc(k)}" ${on ? "checked" : ""}>${esc(uniLabel(l))}</label>`; }).join("");
+  box.classList.toggle("off", !$("#sw-retune").checked);
+  $("#sw-lam").textContent = fmt(S.design.design_wavelength, 6);
+}
 /* ---- controls ---------------------------------------------------------- */
 function swParam(which) { return SW_PARAMS.find((p) => p.k === $(`#sw-param${which}`).value); }
 function swPath(which) { const v = $(`#sw-target${which}`).value; return v ? JSON.parse(v) : null; }
@@ -192,11 +206,22 @@ async function swRun() {
   if (swSame()) { toast("\u201cCurves for\u201d is the same input as \u201cVary\u201d, so the x value would overwrite it at every point. Pick a different input or layer group for the curves.", true); return; }
   const base = JSON.parse(designJSON());
   const opts = { internal_efficiency: parseFloat($("#eta-i").value) || 1, rt_model: $("#rt-model").value };
+  const retune = $("#sw-retune").checked;
+  if (retune) {
+    const paths = [...(SW.tune || [])].map((k) => JSON.parse(k));
+    if (!paths.length) { toast("Pick the layer(s) to re-tune with (for example the cavity spacers).", true); return; }
+    const varied = [P1.target ? p1 : null, P2 && P2.target ? p2 : null].filter(Boolean);
+    const inside = (p, e) => e.every((v, i) => p[i] === v);
+    const clash = paths.find((p) => varied.some((e) => inside(p, e)));
+    if (clash) { toast(`“${swAt(base, clash).name}” is being varied by the sweep, so it cannot also be used to re-tune. Untick it or pick another layer.`, true, 6000); return; }
+    if (P1.k === "all_scale" || P2?.k === "all_scale") toast("Note: re-tuning after a whole-stack scale undoes part of the scale in the chosen layers.", false, 5000);
+    Object.assign(opts, { retune: true, tune_paths: paths, exclude: varied });
+  }
   const lam0 = S.analysis?.results?.wavelength || base.design_wavelength;
   $("#sw-pick").textContent = "Click a point on the plot to see its values and apply it to the design.";
   SW.running = true; SW.stop = false; $("#sw-run").disabled = true; $("#sw-stop").disabled = false;
   SW.data = { P1, P2, p1, p2, u1: swUnit(P1, p1), u2: P2 ? swUnit(P2, p2) : "", t1: $("#sw-target").selectedOptions[0]?.textContent || "",
-    t2: P2 ? ($("#sw-target2").selectedOptions[0]?.textContent || "") : "", curves: v2s.map((v2) => ({ v2, pts: [] })), base: JSON.parse(JSON.stringify(base)) };
+    t2: P2 ? ($("#sw-target2").selectedOptions[0]?.textContent || "") : "", retune: retune ? opts.tune_paths.map((p) => swAt(base, p).name) : null, curves: v2s.map((v2) => ({ v2, pts: [] })), base: JSON.parse(JSON.stringify(base)) };
   const total = xs.length * v2s.length; let done = 0, fails = 0; const t0 = performance.now(); let lastErr = "";
   // follow the lasing mode continuously: start at the point nearest the current design value and walk
   // outwards in both directions, each step starting the solver from the previous point's wavelength
@@ -213,7 +238,7 @@ async function swRun() {
       if (P2) swSet(d, P2, p2, cv.v2);
       swSet(d, P1, p1, x);
       let r = null;
-      try { r = call("sweep_point", JSON.stringify(d), JSON.stringify({ ...opts, lambda_guess: guess })).point; }
+      try { r = call("sweep_point", JSON.stringify(d), JSON.stringify({ ...opts, lambda_guess: retune ? d.design_wavelength : guess })).point; }
       catch (e) { fails++; lastErr = e.message; }
       if (r) {
         r.T_top_passive = r.R_top_passive != null ? 1 - r.R_top_passive : null;
@@ -283,13 +308,14 @@ function swPlot() {
 function swPick(i, j) {
   const D = SW.data; const cv = D.curves[i]; const p = cv.pts[j]; if (!p) return;
   const r = p.r || {};
-  const keys = ["threshold_gain", "wavelength", "slope_top", "slope_bottom", "alpha_m", "R_top_passive", "R_bottom_passive"];
+  const keys = ["threshold_gain", "wavelength", "slope_top", "slope_bottom", "alpha_m", "R_top_passive", "R_bottom_passive", ...(D.retune ? ["retune_scale"] : [])];
   $("#sw-pick").innerHTML = `<b>${esc(swXLabel(D).replace(/<[^>]+>/g, ""))} = ${fmt(p.x, 6)}</b>${D.P2 ? `, ${esc(swCurveName(D, cv))}` : ""}:
     ${keys.map((k) => `${swOutLabel(k)} ${r[k] == null ? "—" : fmt(r[k], 6)}`).join(" · ")}
     <button class="btn sm primary" id="sw-apply">Apply to design</button>`;
   $("#sw-apply").onclick = () => {
     if (D.P2) swSet(S.design, D.P2, D.p2, cv.v2);
     swSet(S.design, D.P1, D.p1, p.x);
+    (r.tuned || []).forEach((t) => { const L = swAt(S.design, t.path); if (L && L.kind !== "group") L.thickness = +t.thickness.toPrecision(8); });
     changed(); toast("Applied to the design (Undo reverts it)");
   };
 }
@@ -297,11 +323,12 @@ const SW_TABLE_KEYS = ["threshold_gain", "modal_gain", "wavelength", "slope_top"
 function swTable() {
   const D = SW.data; if (!D) { $("#sw-table").innerHTML = ""; return; }
   const h2 = D.P2 ? `${swShort(D.P2)}${D.t2 ? ": " + D.t2.replace(/ ×\d+$/, "") : ""}${D.u2 ? ` (${D.u2})` : ""}` : null;
-  const head = [h2, swXLabel(D), ...SW_TABLE_KEYS.map(swOutLabel)].filter((h) => h !== null);
+  const TK = D.retune ? [...SW_TABLE_KEYS, "retune_scale"] : SW_TABLE_KEYS;
+  const head = [h2, swXLabel(D), ...TK.map(swOutLabel)].filter((h) => h !== null);
   const rows = [];
   D.curves.forEach((cv) => cv.pts.forEach((p) => {
     const r = p.r || {};
-    rows.push(`<tr>${D.P2 ? `<td class="n">${fmt(cv.v2, 6)}</td>` : ""}<td class="n">${fmt(p.x, 6)}</td>${SW_TABLE_KEYS.map((k) => `<td class="n">${r[k] == null || r.converged === false ? "—" : fmt(r[k], 6)}</td>`).join("")}</tr>`);
+    rows.push(`<tr>${D.P2 ? `<td class="n">${fmt(cv.v2, 6)}</td>` : ""}<td class="n">${fmt(p.x, 6)}</td>${TK.map((k) => `<td class="n">${r[k] == null || r.converged === false ? "—" : fmt(r[k], 6)}</td>`).join("")}</tr>`);
   }));
   $("#sw-table").innerHTML = `<table class="t"><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`;
 }
@@ -309,7 +336,7 @@ function swCSV() {
   const D = SW.data; if (!D) { toast("Run a sweep first", true); return; }
   const keys = SW_OUT.map((o) => o[0]);
   const plain = (s) => s.replace(/<sub>(.*?)<\/sub>/g, "_$1").replace(/<[^>]+>/g, "");
-  let t = `# ${S.design.name}: parameter sweep\n# x = ${plain(swXLabel(D))}${D.P2 ? `; curves: ${plain(D.P2.label)}${D.t2 ? " of " + D.t2 : ""}` : ""}\n`;
+  let t = `# ${S.design.name}: parameter sweep\n# x = ${plain(swXLabel(D))}${D.P2 ? `; curves: ${plain(D.P2.label)}${D.t2 ? " of " + D.t2 : ""}` : ""}\n${D.retune ? `# re-tuned to ${S.design.design_wavelength} nm after each step by scaling: ${D.retune.join("; ")} (factor in retune_scale)\n` : ""}`;
   t += `${D.P2 ? "param2," : ""}param1,${keys.map((k) => plain(swOutLabel(k)).replace(/,/g, ";")).join(",")}\n`;
   D.curves.forEach((cv) => cv.pts.forEach((p) => {
     const r = p.r || {};
@@ -332,6 +359,13 @@ function initSweepTab() {
   ["#sw-y1", "#sw-y2"].forEach((s) => $(s).addEventListener("change", () => { swPlot(); }));
   $("#tab-sweep .legend-tog").addEventListener("change", swPlot);
   $("#sw-run").addEventListener("click", swRun);
+  $("#sw-retune").addEventListener("change", swTuneList);
+  $("#sw-tune-list").addEventListener("change", (e) => {
+    const k = e.target.dataset.k; if (!k) return;
+    if (e.target.checked) SW.tune.add(k); else SW.tune.delete(k);
+    e.target.parentElement.classList.toggle("on", e.target.checked);
+    if (!$("#sw-retune").checked && e.target.checked) { $("#sw-retune").checked = true; swTuneList(); }
+  });
   $("#sw-stop").addEventListener("click", () => { SW.stop = true; });
   $("#sw-csv").addEventListener("click", swCSV);
   $("#sw-stop").disabled = true;
@@ -345,5 +379,6 @@ function swRefresh() {
     if (!had || $(`#sw-target${w}`).value !== had) swDefaults(w);
   }
   if (!$("#sw-from").value) swDefaults("");
+  swTuneList();
   swCurrentLine();
 }

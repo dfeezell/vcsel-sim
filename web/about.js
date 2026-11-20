@@ -75,7 +75,13 @@ The stopband center is the better measure of where a mirror is centered, and the
 a layer's thickness, composition x or y, absorption or doping, the thickness scale of one group or of the whole stack (a growth-rate error), a group's grading thickness,
 the temperature or the design wavelength. An optional second input gives a family of curves (up to 8 values). Two results can be plotted at once (left and right axis);
 the table and CSV hold every computed quantity. The lasing mode is followed continuously from the current design outwards. Click a point to see its values and
-<b>Apply to design</b> (Undo reverts it).</p>
+<b>Apply to design</b> (Undo reverts it). With <b>Re-tune to the design wavelength</b> ticked, the layers you pick (by default the marked ones) are scaled after each step so the
+cold cavity resonates at λ<sub>design</sub> again; otherwise the resonance drifts off the mirrors' Bragg wavelength as the cavity changes. A layer cannot be both varied and re-tuned.</p>
+<h3>Retarget λ…</h3>
+<p>Moves the whole design to another wavelength: each layer keeps its optical thickness in waves, with dispersion, d<sub>new</sub> = d<sub>old</sub>(λ<sub>new</sub>/λ<sub>old</sub>)n(λ<sub>old</sub>)/n(λ<sub>new</sub>);
+quantum wells and metals keep their physical thickness by default and the cavity is then tuned onto λ<sub>new</sub>. The preview compares the threshold before and after and checks each
+layer's band gap against the new photon energy: passive layers at or within 0.1 eV of their gap are flagged, and the active layer's bulk gap is reported, since the well composition
+(not the mirrors) sets where the gain is.</p>
 <h3>Graded DBR interfaces</h3>
 <p>A periodic group (e.g. an Al<sub>0.90</sub>Ga<sub>0.10</sub>As/GaAs DBR) can have graded interfaces, set in the group editor: <i>linear</i> or <i>bi-parabolic</i> (two parabolas, S-shaped, zero slope at both ends),
 a grade thickness per interface and the number of sub-layers. Each interface inside the group, including those between periods, is replaced by a composition ramp centred on it
@@ -86,7 +92,7 @@ pairs for the same reflectance. The DBR design tab has the same option. The Cold
 the transfer-matrix values include the grading. Old Vertical files get the explicit graded layers.</p>
 <h3>Cavity tuning (Vertical's Marks / Force Wave)</h3>
 <p>Tick <i>Marked</i> on the layers that may change (for example the two cavity spacers), then press <b>Tune cavity</b>. All marked thicknesses are scaled by a
-common factor until the cold-cavity resonance falls exactly on the design wavelength.</p>
+common factor until the cold-cavity resonance falls exactly on the design wavelength. With no marked layers, the cavity spacers between the mirrors are used.</p>
 
 <h3>Materials tab</h3>
 <p>Plots n and k of any material versus wavelength, with the band gap marked, and gives n, k (and α = 4πk/λ) at one wavelength typed in the <i>n, k at λ</i> box.

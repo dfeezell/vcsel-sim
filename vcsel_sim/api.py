@@ -10,7 +10,7 @@ import math
 
 import numpy as np
 
-from . import materials, laser, vrt, export, templates, cavity, fca
+from . import materials, laser, vrt, export, templates, cavity, fca, retarget as _rt
 from .structure import Structure
 
 
@@ -108,6 +108,29 @@ def sweep_point(design_json, options_json="{}"):
     try:
         s = _structure(design_json)
         o = json.loads(options_json or "{}")
+        tuned = None
+        if o.get("retune"):
+            # keep the cavity on the design wavelength: re-tune the marked layers (or the cavity spacers),
+            # skipping the parts of the design that the sweep itself is varying
+            if o.get("tune_paths"):                     # the layers the user picked for re-tuning
+                ex = [tuple(e) for e in (o.get("exclude") or []) if e is not None]
+                picked = [tuple(p) for p in o["tune_paths"]]
+                clash = [p for p in picked if any(p[:len(e)] == e for e in ex)]
+                if clash:
+                    raise ValueError("a re-tune layer is also being varied by the sweep")
+                layers = [_rt.at_path(s, p) for p in picked]
+                layers = [L for L in layers if L is not None and getattr(L, "kind", "layer") == "layer"]
+                if not layers:
+                    raise ValueError("no re-tune layers")
+            else:
+                layers, _ = _rt.tuning_layers(s, o.get("exclude") or [])
+            t = _rt.tune_layers(s, layers, s.design_wavelength)
+            if not t["converged"]:
+                raise ValueError(f"re-tuning to {s.design_wavelength:g} nm failed")
+            ids = {id(L) for L in layers}
+            tuned = {"scale": t["scale"], "layers": [{"path": list(p), "thickness": L.thickness}
+                                                     for L, p, _ in _rt.walk_layers(s.stack) if id(L) in ids]}
+            o["lambda_guess"] = s.design_wavelength
         a = laser.analyze(s, lam_guess=o.get("lambda_guess"), normalize="bottom", spacing_passive=50.0,
                           spacing_active=1.0, internal_efficiency=float(o.get("internal_efficiency", 1.0)),
                           rt_model=o.get("rt_model", "exact"))
@@ -124,6 +147,9 @@ def sweep_point(design_json, options_json="{}"):
             out["L_pen_bottom"] = (c.get("bottom") or {}).get("L_eff_phase")
         except Exception:
             pass
+        if tuned:
+            out["retune_scale"] = tuned["scale"]
+            out["tuned"] = tuned["layers"]
         return ok({"point": out})
     except Exception as e:
         return fail(e)
@@ -196,6 +222,38 @@ def tune_cavity(design_json, target=None):
         s = _structure(design_json)
         rep = laser.tune_marked(s, target)
         return ok({"design": s.to_dict(), "report": rep})
+    except Exception as e:
+        return fail(e)
+
+
+def retarget_design(design_json, options_json="{}"):
+    """Move the design to a new wavelength (see retarget.py). Returns the new design, a report with the
+    absorption checks, and a before / after comparison of the threshold analysis."""
+    try:
+        o = json.loads(options_json or "{}")
+        s = _structure(design_json)
+
+        def brief(st, guess):
+            try:
+                a = laser.analyze(st, lam_guess=guess, normalize="bottom", spacing_passive=50.0, spacing_active=1.0,
+                                  rt_model=o.get("rt_model", "exact"))
+                r = a.summary()
+                return {k: r.get(k) for k in ("wavelength", "threshold_gain", "modal_gain", "slope_top", "confinement", "converged")}
+            except Exception as e:  # e.g. no active layer
+                return {"error": str(e)}
+        before = brief(s, o.get("lambda_guess"))
+        rep = _rt.retarget(s, float(o["wavelength"]), keep_active=bool(o.get("keep_active", True)),
+                           keep_metal=bool(o.get("keep_metal", True)), tune=bool(o.get("tune", True)))
+        after = brief(s, s.design_wavelength)
+        return ok({"design": s.to_dict(), "report": rep, "before": before, "after": after})
+    except Exception as e:
+        return fail(e)
+
+
+def absorption_check(design_json, wavelength=None):
+    try:
+        s = _structure(design_json)
+        return ok({"checks": _rt.absorption_check(s, float(wavelength or s.design_wavelength))})
     except Exception as e:
         return fail(e)
 

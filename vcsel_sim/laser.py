@@ -616,49 +616,11 @@ def _marked_layers(structure):
 
 
 def tune_marked(structure: Structure, target=None, tol=1e-6, maxit=40):
-    """Scale the thickness of every marked layer by a common factor until the cold-cavity
-    resonance (real part of the quasi-normal-mode wavelength) equals `target`
-    (default: design wavelength). Modifies `structure` in place; returns a report dict."""
-    marked = _marked_layers(structure)
-    if not marked:
-        raise ValueError("No layers are marked. Tick 'Marked for tuning' on the layer(s) to adjust (e.g. the cavity spacers).")
-    target = float(target or structure.design_wavelength)
-    base = [(L, L.thickness) for L in marked]
-
-    def resonance(scale):
-        for L, t0 in base:
-            L.thickness = t0 * scale
-        # always start the mode search at the target so the solver stays on the cavity mode
-        return cold_cavity_mode(Model(structure), target).real - target
-
-    # secant with a step limit, switching to bisection once the root is bracketed
-    s_lo, s_hi = 0.3, 3.0
-    s0, s1 = 1.0, 1.02
-    f0, f1 = resonance(s0), resonance(s1)
-    br = None                                   # (s_a, f_a, s_b, f_b) with f_a*f_b < 0
-    if f0 * f1 < 0:
-        br = (s0, f0, s1, f1)
-    it = 0
-    for it in range(maxit):
-        if abs(f1) < tol:
-            break
-        if f1 != f0:
-            s2 = s1 - f1 * (s1 - s0) / (f1 - f0)
-        else:
-            s2 = s1 * (0.9 if f1 > 0 else 1.1)
-        s2 = min(max(s2, 0.8 * s1, s_lo), 1.25 * s1, s_hi)      # at most ±20–25 % per step
-        if br is not None and not (min(br[0], br[2]) < s2 < max(br[0], br[2])):
-            s2 = 0.5 * (br[0] + br[2])
-        f2 = resonance(s2)
-        if br is not None:
-            br = (br[0], br[1], s2, f2) if br[1] * f2 < 0 else (s2, f2, br[2], br[3])
-        elif f1 * f2 < 0:
-            br = (s1, f1, s2, f2)
-        s0, f0, s1, f1 = s1, f1, s2, f2
-        if br is None and s1 in (s_lo, s_hi) and s0 == s1:
-            break                               # pinned at a bound: no solution in range
-    if abs(f1) > 1e-3:
-        for L, t0 in base:                      # failed: leave the design unchanged
-            L.thickness = t0
-    return {"scale": s1, "resonance": f1 + target, "converged": abs(f1) <= 1e-3, "iterations": it + 1,
-            "layers": [{"name": L.name, "old": t0, "new": L.thickness, "unit": L.thickness_unit} for L, t0 in base]}
+    """Scale the thickness of the marked layers (or, when none are marked, the cavity spacers) by a common
+    factor until the cold-cavity resonance equals `target` (default: design wavelength). Modifies `structure`
+    in place; returns a report dict (unchanged design when it fails)."""
+    from .retarget import tuning_layers, tune_layers
+    layers, how = tuning_layers(structure)
+    rep = tune_layers(structure, layers, target, tol=tol, maxit=maxit)
+    rep["chosen"] = how
+    return rep

@@ -290,3 +290,27 @@ def test_sweep_point_matches_full_analysis():
     r = json.loads(api.run_analysis(json.dumps(d)))["results"]
     for k in ("threshold_gain", "wavelength", "slope_top", "alpha_m", "confinement"):
         assert abs(p[k] - r[k]) < 1e-9 * max(1.0, abs(r[k]))
+
+
+def test_retarget_keeps_resonance_and_flags_absorption():
+    import json
+    from vcsel_sim import api
+    d = json.dumps(templates.gaas_980().to_dict())
+    r = json.loads(api.retarget_design(d, json.dumps({"wavelength": 1000})))
+    assert r["ok"] and r["report"]["tune"]["converged"]
+    assert abs(r["after"]["wavelength"] - 1000) < 1e-3
+    assert not [c for c in r["report"]["checks"] if c["level"] == "error"]
+    r = json.loads(api.retarget_design(d, json.dumps({"wavelength": 860})))
+    assert any(c["level"] == "error" and "GaAs" in c["layer"] for c in r["report"]["checks"])
+
+
+def test_sweep_retune_holds_wavelength():
+    import json
+    from vcsel_sim import api
+    s = templates.gaas_980()
+    s.stack[1].thickness *= 1.05                 # detune with the top spacer, re-tune with the bottom one
+    o = {"retune": True, "tune_paths": [[4]], "exclude": [[1]]}
+    r = json.loads(api.sweep_point(json.dumps(s.to_dict()), json.dumps(o)))
+    assert r["ok"] and abs(r["point"]["wavelength"] - 980) < 1e-3 and r["point"]["retune_scale"] < 1
+    o["tune_paths"] = [[1]]
+    assert not json.loads(api.sweep_point(json.dumps(s.to_dict()), json.dumps(o)))["ok"]

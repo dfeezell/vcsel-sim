@@ -4,7 +4,7 @@
  */
 "use strict";
 
-const PY_FILES = ["__init__.py", "_tables.py", "materials.py", "structure.py", "tmm.py", "laser.py", "cavity.py", "fca.py",
+const PY_FILES = ["__init__.py", "_tables.py", "materials.py", "structure.py", "tmm.py", "laser.py", "cavity.py", "fca.py", "retarget.py",
   "vrt.py", "vrt_write.py", "export.py", "templates.py", "api.py"];
 
 const LAYER_TYPES = [["undoped", "undoped"], ["n-type", "n-type"], ["p-type", "p-type"], ["active", "active (gain)"],
