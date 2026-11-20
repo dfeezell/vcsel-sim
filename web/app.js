@@ -469,17 +469,17 @@ function plotField() {
       annotations.push({ xref: "x", yref: "paper", x: (a + b) / 2, y: 1.031, text: role === "top_dbr" ? "Top DBR" : "Bottom DBR", showarrow: false, yanchor: "middle", font: { size: 11, color: "#1f5fae" } });
     }
   }
-  // headroom above the index trace so the legend sits in clear space at the top left
   const nv = P.n.filter((v) => Number.isFinite(v)); const nmin = Math.min(...nv), nmax = Math.max(...nv), ns = Math.max(nmax - nmin, 0.05);
-  const nRange = [nmin - 0.05 * ns, nmax + 0.28 * ns];
+  const nRange = [nmin - 0.05 * ns, nmax + 0.06 * ns];
   const xl = `${$("#f-origin").value === "top" ? "Depth from top surface" : "Height above substrate"} (${units === "um" ? "µm" : "nm"})`;
   const normTxt = { bottom: "normalized to substrate", top: "normalized to exit medium", peak: "normalized to peak" }[$("#f-norm").value];
   const layout = {
-    font: PLOT_FONT, margin: { l: 70, r: 70, t: 54, b: 56 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
+    font: PLOT_FONT, margin: { l: 70, r: 70, t: 76, b: 56 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
     xaxis: { title: { text: xl }, zeroline: false, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
     yaxis: { title: { text: A && show !== "n" ? `|E|² (${normTxt})` : "Refractive index n" }, zeroline: false, showline: true, mirror: !(A && show === "both"), linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", rangemode: A && show !== "n" ? "tozero" : "normal", range: A && show !== "n" ? undefined : nRange },
     yaxis2: { title: { text: "Refractive index n", font: { color: "#1f5fae" } }, overlaying: "y", side: "right", showgrid: false, showline: true, linecolor: "#444", ticks: "outside", tickfont: { color: "#1f5fae" }, range: nRange },
-    legend: { orientation: "h", x: 0.01, y: 0.99, xanchor: "left", yanchor: "top", bgcolor: "rgba(255,255,255,0.88)", bordercolor: "#ccd2db", borderwidth: 1 }, shapes, annotations,
+    // legend between the title and the axes, so it never covers the curves (also in exported figures)
+    legend: { orientation: "h", xref: "paper", x: 1, xanchor: "right", yref: "paper", y: 1.055, yanchor: "bottom", bgcolor: "rgba(0,0,0,0)", borderwidth: 0 }, shapes, annotations,
     title: { text: A ? `${esc(S.design.name)} — λ = ${A.results.wavelength.toFixed(3)} nm, g<sub>th</sub> = ${A.results.threshold_gain.toFixed(1)} cm⁻¹` : esc(S.design.name), font: { size: 13 }, x: 0.01, xanchor: "left", y: 0.995 },
   };
   renderKpis();                       // before plotting, so the plot gets its final height
