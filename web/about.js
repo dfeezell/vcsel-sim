@@ -106,7 +106,10 @@ Electrons use 4×10⁻¹⁸ cm² (n-GaAs at 1.5 µm, D. C. Look et al., Appl. Ph
 In Mg-doped layers most of the loss is absorption by holes bound to activated Mg acceptors rather than by free holes, so enter the <b>Mg concentration</b> as the doping.
 Two values are offered: the measurement of D. Sizov, R. Bhat and C. Zah, J. Appl. Phys. 113, 203108 (2013), about 1×10⁻¹⁷ cm² per activated Mg, weakly dependent on wavelength
 and temperature and isotropic (default), and the first-principles free + bound hole cross-section of Kioupakis et al. (2010) (0.9×10⁻¹⁸ cm² at 450 nm), about ten times smaller.</li>
-<li><b>AlGaInP</b>: estimate only, the GaAs values scaled by (λ/870 nm)².</li></ul>
+<li><b>AlGaInP</b>: estimate only (no direct measurement found), interpolated between the binaries as is common for this alloy. Electrons: between the GaAs value
+(Casey, scaled by (λ/870 nm)²) at x = 0 and n-GaP at x = 0.51, linear in x/0.51. The GaP value is from W. G. Spitzer et al., J. Phys. Chem. Solids 11, 339 (1959), 295 K:
+about 40 cm⁻¹ at 1.2 µm for n = 10¹⁸ cm⁻³, rising as λ<sup>1.56</sup>, extrapolated to shorter wavelengths (about 1.5×10⁻¹⁷ cm² at 650 nm). Electrons in the indirect X valleys of
+Al-rich AlGaInP absorb much more than in GaAs. Holes: the GaAs value scaled by (λ/870 nm)².</li></ul>
 <p>Typing a doping into an n- or p-type layer whose material has a model switches that layer to “From doping”. Doping in the active region and injected carriers are not included,
 nor is the near-band-edge (Urbach) absorption of heavily doped GaN, which matters below about 420 nm.</p>
 
