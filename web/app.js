@@ -589,11 +589,12 @@ function cavityRows(C, showV) {
   const span = showV ? 5 : 4;
   let h = `<tr class="sec"><td colspan="${span}">Cavity length and confinement (course notes, Coldren &amp; Corzine App. 7)</td></tr>`;
   if (!C || !C.complete) return h + `<tr><td colspan="${span}" class="def">${esc(C?.note || "Not available.")}</td></tr>`;
+  // course-notes model with Coldren A7.25 depths; the depths from the computed mirror phase are the check row
   const K = C.coldren, KV = C.coldren_vertical_enh || {}, P = C.phase || {};
   const row = (label, v, unit, def, vv) => `<tr><td>${label}</td><td class="n">${fmt(v, 6)}</td><td>${unit}</td>${showV ? `<td class="n">${vv === undefined ? "" : fmt(vv, 6)}</td>` : ""}<td class="def">${def}</td></tr>`;
   const half = Math.round(2 * K.chi) / 2;
   h += row("Cavity length L<sub>cav</sub>", C.L_cav, "nm", "physical thickness between the DBRs (active + barriers + SCH)");
-  h += row(`Top DBR penetration L<sub>eff,1</sub>`, K.L_eff_top, "nm", "Coldren A7.25 closed form; see the mirror table below for the value from the computed reflection phase");
+  h += row(`Top DBR penetration L<sub>eff,1</sub>`, K.L_eff_top, "nm", "Coldren A7.25 (exact for a quarter-wave stack, delay measured in the mirror's average index n̄ = λ/2Λ); see the mirror table below");
   h += row(`Bottom DBR penetration L<sub>eff,2</sub>`, K.L_eff_bottom, "nm", "Coldren A7.25");
   h += row("Effective cavity length L", K.L, "nm", "L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>");
   h += row("Confinement factor Γ", K.confinement, "", "Γ<sub>enh</sub> L<sub>a</sub> / L (Vertical column: Vertical's Γ<sub>enh</sub> and round-trip values)", KV.confinement);
@@ -604,7 +605,7 @@ function cavityRows(C, showV) {
   h += row("R<sub>up</sub>", K.R_up, "", `${lin ? "exp(−trans. up)" : "1 − trans. up"}; ${xn}: ${fmt(X.R_up, 7)}. Passive top DBR from the cavity: ${fmt(C.R_top_passive, 7)}`, KV.R_up);
   h += row("R<sub>down</sub>", K.R_down, "", `${lin ? "exp(−trans. down)" : "1 − trans. down"}; ${xn}: ${fmt(X.R_down, 7)}. Passive bottom DBR from the cavity: ${fmt(C.R_bottom_passive, 7)}`, KV.R_down);
   h += row("Cavity optical thickness χ", K.chi, "λ", `L n<sub>eff</sub>/λ<sub>0</sub>, n<sub>eff</sub> = average core index. Nearest half-wave multiple: ${half}`, KV.chi);
-  if (P.L !== undefined) h += row("L using phase penetration depths", P.L, "nm", `check: depths from the computed mirror reflection phase, ½|dφ/dβ| (top ${fmt(P.L_eff_top, 5)}, bottom ${fmt(P.L_eff_bottom, 5)} nm); Γ = ${fmt(P.confinement, 5)}`);
+  if (P.L !== undefined) h += row("L using phase penetration depths", P.L, "nm", `check: ½|dφ/dβ| of the computed mirror reflection with β = 2πn<sub>cav</sub>/λ, measured in the cavity layer next to each mirror (top ${fmt(P.L_eff_top, 5)}, bottom ${fmt(P.L_eff_bottom, 5)} nm); Γ = ${fmt(P.confinement, 5)}. For an ideal quarter-wave mirror next to its high-index layer this equals A7.25 × n̄/n<sub>cav</sub>`);
   h += `<tr class="sec"><td colspan="${span}">DBR penetration depths at λ<sub>las</sub></td></tr>`;
   h += `<tr><td colspan="${span}" style="padding:0 0 6px"><table class="t"><thead><tr><th>Mirror</th><th class="r">periods m</th><th class="r">Λ (nm)</th><th class="r">n<sub>1</sub> / n<sub>2</sub></th><th class="r">r</th><th class="r">m<sub>eff</sub></th><th class="r">κ (cm⁻¹)</th><th class="r">L<sub>eff</sub> A7.25</th><th class="r">tanh(2mr)/2κ</th><th class="r">Λ/4r</th><th class="r">λ/4Δn</th><th class="r">phase ½|dφ/dβ|</th></tr></thead><tbody>${
     [C.top, C.bottom].map((m) => `<tr><td>${esc(m.name)}${m.cavity_side_high ? ' <span class="badge">high-index layer next to cavity counted in L<sub>cav</sub></span>' : ""}${m.layers_per_period !== 2 ? ` <span class="badge">${m.layers_per_period} layers/period: n<sub>1</sub>, n<sub>2</sub> = min, max</span>` : ""}</td><td class="n">${m.periods}</td><td class="n">${fmt(m.period_nm, 6)}</td><td class="n">${fmt(m.n_low, 5)} / ${fmt(m.n_high, 5)}</td><td class="n">${fmt(m.r, 5)}</td><td class="n">${fmt(m.m_eff, 5)}</td><td class="n">${fmt(m.kappa_cm, 5)}</td><td class="n"><b>${fmt(m.L_eff, 5)}</b></td><td class="n">${fmt(m.L_eff_tanh, 5)}</td><td class="n">${fmt(m.L_eff_long, 5)}</td><td class="n">${fmt(m.L_eff_lambda, 5)}</td><td class="n">${fmt(m.L_eff_phase, 5)}</td></tr>`).join("")}</tbody></table></td></tr>`;

@@ -33,12 +33,17 @@ The linear forms are the definitions in the course notes (“Vertical Gain and L
 the external differential efficiency is η<sub>d</sub> = η<sub>i</sub> × RT transmission / RT gain (slope efficiency η<sub>d</sub> hν/q in W/A).</p>
 <h3>Cavity length, penetration depth and confinement (course notes)</h3>
 <p>The Results tab also follows the ECE 577 notes (“Vertical Gain and Loss Definitions”) and Coldren &amp; Corzine Appendix 7.
-Each DBR's penetration depth comes from the closed-form quarter-wave expressions</p>
+Coldren &amp; Corzine give the penetration depth of a quarter-wave mirror in closed form</p>
 <span class="eq">m<sub>eff</sub> = tanh[m ln(n<sub>2</sub>/n<sub>1</sub>)] / tanh[ln(n<sub>2</sub>/n<sub>1</sub>)],   L<sub>eff</sub> = ½ m<sub>eff</sub> Λ [1/(1+r²) − 1/(2m<sub>eff</sub>)]</span>
-<p>measured from the first low-index layer. A high-index mirror layer that touches the cavity is counted in the cavity. The effective length is then
+<p>measured from the first low-index layer. A7.25 is exact, but it measures the phase delay of a wave travelling at the mirror's average index
+n̄ = λ/2Λ. Measured in the cavity medium next to the mirror instead, the same delay corresponds to a length shorter by n̄/n<sub>cav</sub>
+(about 9% for AlAs/GaAs mirrors next to GaAs). For comparison the Results tab also lists depths taken from the computed
+reflection phase, ½|dφ/dβ| with β = 2πn<sub>cav</sub>/λ, which also cover mirrors that are not ideal quarter-wave stacks or that start with a
+low-index layer next to a lower-index cavity. The exact, energy-weighted Γ further down the table needs no penetration depth at all.
+A high-index mirror layer that touches the cavity is counted in the cavity. The effective length is then
 <span class="eq">L = L<sub>cav</sub> + L<sub>eff,1</sub> + L<sub>eff,2</sub>,   Γ = Γ<sub>enh</sub> L<sub>a</sub> / L</span>
 from which the modal gain, ⟨α<sub>i</sub>⟩, α<sub>m</sub>, R<sub>up</sub>, R<sub>down</sub> and the cavity optical thickness χ = L n<sub>eff</sub>/λ<sub>0</sub> follow.
-The Ch. 3 approximations (tanh(2mr)/2κ, Λ/4r, λ/4Δn) and a penetration depth taken from the computed reflection phase, ½|dφ/dβ|, are shown for comparison.
+The Ch. 3 approximations (tanh(2mr)/2κ, Λ/4r, λ/4Δn) are shown in the mirror table for comparison.
 This Γ is not the same quantity as the energy-weighted Γ further down the table. The two can differ by 10–20%.</p>
 <h3>Linear or exact round-trip conversion</h3>
 <p>The transfer-matrix solve gives the threshold gain and the round-trip fractions exactly. Turning those fractions into losses per length

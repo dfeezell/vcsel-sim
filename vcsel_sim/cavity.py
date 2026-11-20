@@ -9,7 +9,9 @@ Appendix 7 do it.
     R_up   = exp(-trans. up),  R_down = exp(-trans. down)
     chi    = L * n_eff / lambda0          (cavity optical thickness in waves)
 
-DBR penetration depth (Coldren & Corzine eqs. A7.13 and A7.25, closed form for a quarter-wave stack):
+DBR penetration depth (Coldren & Corzine eqs. A7.13 and A7.25, exact for a quarter-wave stack, with the
+delay measured in the mirror's average index nbar = lambda/2Lambda; the phase value below, referenced to the
+cavity index, equals it times nbar/n_cav):
 
     r      = (n2 - n1) / (n2 + n1)
     m_eff  = tanh[m ln(n2/n1)] / tanh[ln(n2/n1)]
