@@ -123,6 +123,16 @@ function swFillTargets(which) {
   else if (P.target === "group" || P.target === "gradable") {           // default to a mirror
     const dbr = T.find(([p]) => /DBR/i.test(swAt(S.design, p).role || "") || /dbr/i.test(swAt(S.design, p).role)); if (dbr) sel.value = JSON.stringify(dbr[0]);
   }
+  if (which === "2" && swSame()) {                                       // never default the curves to the swept input itself
+    const p1 = $("#sw-target").value; const alt = T.find(([p]) => JSON.stringify(p) !== p1 && (P.target !== "group" && P.target !== "gradable" || /DBR/i.test(swAt(S.design, p).role || "")))
+      || T.find(([p]) => JSON.stringify(p) !== p1);
+    if (alt) sel.value = JSON.stringify(alt[0]);
+  }
+}
+// true when the second parameter is the same input as the first (it would be overwritten at every point)
+function swSame() {
+  const a = $("#sw-param").value, b = $("#sw-param2").value;
+  return !!b && a === b && ($("#sw-target").value || "") === ($("#sw-target2").value || "");
 }
 function swDefaults(which) {
   const P = swParam(which); if (!P) return;
@@ -179,6 +189,7 @@ async function swRun() {
   const P1 = swParam(""), P2 = swParam("2"), p1 = swPath(""), p2 = swPath("2");
   if (P1.target && !p1) { toast("Choose what to vary", true); return; }
   if (P2 && P2.target && !p2) { toast("Choose the target of the second parameter", true); return; }
+  if (swSame()) { toast("\u201cCurves for\u201d is the same input as \u201cVary\u201d, so the x value would overwrite it at every point. Pick a different input or layer group for the curves.", true); return; }
   const base = JSON.parse(designJSON());
   const opts = { internal_efficiency: parseFloat($("#eta-i").value) || 1, rt_model: $("#rt-model").value };
   const lam0 = S.analysis?.results?.wavelength || base.design_wavelength;
