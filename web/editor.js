@@ -50,8 +50,9 @@ function edOpen(anchor) {
   ED.open = true; document.body.classList.add("props-open");
   edUpdateNav();
   if (!wasOpen || !ED.pos) edPlace(anchor);
+  if (window.selHighlight) selHighlight();
 }
-function edClose() { ED.open = false; document.body.classList.remove("props-open"); }
+function edClose() { ED.open = false; document.body.classList.remove("props-open"); if (window.selHighlight) selHighlight(); }
 function edSetFloat(on, save = true) {
   ED.float = on;
   document.body.classList.toggle("props-float", on);

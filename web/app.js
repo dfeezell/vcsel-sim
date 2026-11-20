@@ -380,6 +380,7 @@ function matOptions(cur) {
     `<option value="${m.key}" ${m.key === cur ? "selected" : ""}>${esc(m.label)}</option>`).join("")}</optgroup>`).join("");
 }
 function renderProps() {
+  if (window.selHighlight) setTimeout(selHighlight, 0);
   const el = $("#props"); const it = S.design && getAt(S.sel);
   if (!it) { el.innerHTML = '<div class="empty">Select a layer or group.</div>'; $("#props-title").textContent = "Properties"; return; }
   const isBoundary = S.sel[0] !== "stack";
@@ -525,8 +526,41 @@ function plotField() {
     legend: { orientation: "h", xref: "paper", x: 1, xanchor: "right", yref: "paper", y: 1.01, yanchor: "bottom", bgcolor: "rgba(0,0,0,0)", borderwidth: 0 }, shapes, annotations,
   };
   renderKpis();                       // before plotting, so the plot gets its final height
+  S.fieldShapes = shapes;
+  layout.shapes = shapes.concat(selShapes(P));
   Plotly.react(el, traces, layout, PLOT_CONFIG);
 }
+// faint blue band on the Field plot over the item open in the layer editor (every repeat of it)
+function selShapes(P) {
+  const open = typeof ED === "undefined" || !ED.float || ED.open;
+  if (!open || !P || !S.design || !S.sel) return [];
+  const sel = S.sel, key = sel.join("/"), out = [];
+  const band = (a, b) => out.push({ type: "rect", xref: "x", yref: "paper", x0: Math.min(a, b), x1: Math.max(a, b), y0: 0, y1: 1,
+    fillcolor: "rgba(28,126,214,0.20)", line: { width: 1, color: "rgba(28,126,214,0.55)" }, layer: "below" });
+  if (sel[0] === "top") { band(xmap(-1e5, P), xmap(0, P)); return out; }
+  if (sel[0] === "sub") { band(xmap(P.total_thickness, P), xmap(P.total_thickness + 1e5, P)); return out; }
+  // flatten the tree in the engine's order, remembering each layer's tree path
+  const paths = [];
+  const walk = (items, pre) => items.forEach((it, i) => {
+    const q = [...pre, i];
+    if (it.kind === "group") { for (let k = 0; k < Math.max(+it.repeats || 0, 0); k++) walk(it.children, q); } else paths.push(q.join("/"));
+  });
+  walk(S.design.stack, ["stack"]);
+  if (paths.length !== P.layers.length) return [];
+  let run = null;                                   // merge neighbouring selected layers into one band
+  paths.forEach((pth, j) => {
+    const hit = pth === key || pth.startsWith(key + "/");
+    const L = P.layers[j];
+    if (hit) run = run ? [run[0], L.z1] : [L.z0, L.z1];
+    if ((!hit || j === paths.length - 1) && run) { band(xmap(run[0], P), xmap(run[1], P)); run = null; }
+  });
+  return out;
+}
+function selHighlight() {
+  const el = $("#plot-field"); if (!el || !el.data || !S.profile) return;
+  Plotly.relayout(el, { shapes: (S.fieldShapes || []).concat(selShapes(S.profile)) });
+}
+window.selHighlight = selHighlight;
 // keep plots fitted to their boxes when the layout around them changes (tabs, KPI rows, window size)
 if (window.ResizeObserver) {
   const ro = new ResizeObserver((entries) => entries.forEach((en) => {
