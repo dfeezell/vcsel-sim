@@ -36,19 +36,19 @@ def gaas_980(top_pairs=22, bottom_pairs=32, n_qw=3):
     act_opt = (n_qw * qw_t * n_qw_ + (n_qw + 1) * b_t * n_b) / lam
     sp = (1.0 - act_opt) / 2
     stack = [
-        Group("P-DBR", top_pairs, [L("GaAs", "AlGaAs", 0.0, **p), L("Al0.90GaAs", "AlGaAs", 0.9, **p)], role="top_dbr"),
-        L("Al0.30GaAs spacer", "AlGaAs", 0.3, sp, marked=True, **p),
+        Group("P-DBR", top_pairs, [L("GaAs", "AlGaAs", 0.0, **p), L("Al0.90Ga0.10As", "AlGaAs", 0.9, **p)], role="top_dbr"),
+        L("Al0.30Ga0.70As spacer", "AlGaAs", 0.3, sp, marked=True, **p),
         Group("Active region", n_qw, [L("GaAs barrier", "AlGaAs", 0.0, b_t, "nm"),
-                                      L("In0.2GaAs QW", "InGaAs", 0.2, qw_t, "nm", typ="active")], role="active"),
+                                      L("In0.20Ga0.80As QW", "InGaAs", 0.2, qw_t, "nm", typ="active")], role="active"),
         L("GaAs barrier", "AlGaAs", 0.0, b_t, "nm"),
-        L("Al0.30GaAs spacer", "AlGaAs", 0.3, sp, marked=True, **n),
-        Group("N-DBR", bottom_pairs, [L("Al0.90GaAs", "AlGaAs", 0.9, **n), L("GaAs", "AlGaAs", 0.0, **n)], role="bottom_dbr"),
+        L("Al0.30Ga0.70As spacer", "AlGaAs", 0.3, sp, marked=True, **n),
+        Group("N-DBR", bottom_pairs, [L("Al0.90Ga0.10As", "AlGaAs", 0.9, **n), L("GaAs", "AlGaAs", 0.0, **n)], role="bottom_dbr"),
     ]
     s = Structure(name="980 nm InGaAs/GaAs VCSEL", design_wavelength=lam,
                      top=Layer(name="Air", material="Air", thickness=0, thickness_unit="nm", layer_type="other"),
                      substrate=Layer(name="n-GaAs substrate", material="AlGaAs", x=0.0, thickness=0,
                                      thickness_unit="nm", layer_type="n-type", doping=2e18),
-                     stack=stack, notes="1-lambda Al0.3GaAs cavity, 3 x 6 nm In0.2GaAs QWs, Al0.9GaAs/GaAs DBRs. "
+                     stack=stack, notes="1-lambda Al0.30Ga0.70As cavity, 3 x 6 nm In0.20Ga0.80As QWs, Al0.90Ga0.10As/GaAs DBRs. "
                                         "Spacers are marked and were tuned so the cavity resonates at 980 nm.")
     _tune(s)
     return s
@@ -66,12 +66,12 @@ def algaas_850(top_pairs=22, bottom_pairs=34, n_qw=3):
     qw = Layer(name="GaAs QW", material="AlGaAs", x=0.0, thickness=qw_t, thickness_unit="nm", layer_type="active",
                index_mode="fixed", n_real=round(n_qw_, 5))
     stack = [
-        Group("P-DBR", top_pairs, [L("Al0.12GaAs", "AlGaAs", 0.12, **p), L("Al0.90GaAs", "AlGaAs", 0.9, **p)], role="top_dbr"),
-        L("Al0.60GaAs spacer", "AlGaAs", 0.6, sp, marked=True, **p),
-        Group("Active region", n_qw, [L("Al0.3GaAs barrier", "AlGaAs", 0.3, b_t, "nm"), qw], role="active"),
-        L("Al0.3GaAs barrier", "AlGaAs", 0.3, b_t, "nm"),
-        L("Al0.60GaAs spacer", "AlGaAs", 0.6, sp, marked=True, **n),
-        Group("N-DBR", bottom_pairs, [L("Al0.90GaAs", "AlGaAs", 0.9, **n), L("Al0.12GaAs", "AlGaAs", 0.12, **n)], role="bottom_dbr"),
+        Group("P-DBR", top_pairs, [L("Al0.12Ga0.88As", "AlGaAs", 0.12, **p), L("Al0.90Ga0.10As", "AlGaAs", 0.9, **p)], role="top_dbr"),
+        L("Al0.60Ga0.40As spacer", "AlGaAs", 0.6, sp, marked=True, **p),
+        Group("Active region", n_qw, [L("Al0.30Ga0.70As barrier", "AlGaAs", 0.3, b_t, "nm"), qw], role="active"),
+        L("Al0.30Ga0.70As barrier", "AlGaAs", 0.3, b_t, "nm"),
+        L("Al0.60Ga0.40As spacer", "AlGaAs", 0.6, sp, marked=True, **n),
+        Group("N-DBR", bottom_pairs, [L("Al0.90Ga0.10As", "AlGaAs", 0.9, **n), L("Al0.12Ga0.88As", "AlGaAs", 0.12, **n)], role="bottom_dbr"),
     ]
     s = Structure(name="850 nm GaAs/AlGaAs VCSEL", design_wavelength=lam,
                      top=Layer(name="Air", material="Air", thickness=0, thickness_unit="nm", layer_type="other"),

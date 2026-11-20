@@ -114,7 +114,14 @@ function setDesign(d, rerun = true) {
   // "Generic" has no dispersion model: it is always a fixed n, k layer (its old model value was n = 3.5)
   const fixGeneric = (L) => { if (L && L.material === "Generic" && L.index_mode !== "fixed") { L.index_mode = "fixed"; if (!(L.n_real > 0)) L.n_real = 3.5; } };
   fixGeneric(d.top); fixGeneric(d.substrate);
-  const walkG = (items) => items.forEach((it) => (it.kind === "group" ? walkG(it.children) : fixGeneric(it))); walkG(d.stack);
+  // names written by older versions with the short alloy form (Al0.90GaAs) -> full form (Al0.90Ga0.10As)
+  const fixName = (L) => {
+    const m = /^(Al|In)(\d*\.\d+)Ga(As|N)\b(.*)$/.exec(L.name || "");
+    if (m && ["AlGaAs", "AlGaAs_Gehrsitz", "InGaAs", "AlGaN", "InGaN"].includes(L.material) && Math.abs(+m[2] - (+L.x || 0)) < 1e-3) {
+      const f = matFormula(L.material, L.x, L.y); if (f) L.name = f + m[4];
+    }
+  };
+  const walkG = (items) => items.forEach((it) => (it.kind === "group" ? walkG(it.children) : (fixGeneric(it), fixName(it)))); walkG(d.stack);
   $("#design-temp").value = d.temperature;
   $("#design-name").textContent = d.name || "Untitled";
   const lam = d.design_wavelength;
@@ -206,7 +213,7 @@ function runAnalysis(explicit = true) {
 }
 
 /* ------------------------------------------------------------------ stack view */
-// colour ramps chosen for contrast between neighbouring layers (e.g. GaAs / Al0.2GaAs / AlAs)
+// colour ramps chosen for contrast between neighbouring layers (e.g. GaAs / Al0.2Ga0.8As / AlAs)
 function ramp(stops, t) {
   t = Math.min(1, Math.max(0, +t || 0));
   let k = 0; while (k < stops.length - 2 && t > stops[k + 1][0]) k++;
@@ -234,7 +241,8 @@ function fx(v) { const s = (+v).toFixed(3); return s.endsWith("0") ? s.slice(0, 
 function matFormula(material, x, y) {
   x = +x || 0; y = +y || 0;
   const is0 = (v) => Math.abs(v) < EPS_X, is1 = (v, e = 1) => Math.abs(v - e) < EPS_X;
-  const tern = (a, b, rest, v, lo = 0, hi = 1) => (is0(v - lo) ? `${b}${rest}` : is1(v, hi) ? `${a}${rest}` : `${a}${fx(v)}${b}${rest}`);
+  // standard notation with both fractions: Al0.90Ga0.10As
+  const tern = (a, b, rest, v) => (is0(v) ? `${b}${rest}` : is1(v) ? `${a}${rest}` : `${a}${fx(v)}${b}${fx(1 - v)}${rest}`);
   switch (material) {
     case "AlGaAs": case "AlGaAs_Gehrsitz": return tern("Al", "Ga", "As", x);
     case "InGaAs": return tern("In", "Ga", "As", x);
@@ -255,6 +263,11 @@ function matFormula(material, x, y) {
   }
 }
 const MODEL_TAG = { AlGaAs_Gehrsitz: "Gehrsitz", AlGaInP_Adachi: "Adachi" };
+// escaped HTML with alloy compositions subscripted: Al0.90Ga0.10As -> Al<sub>0.90</sub>Ga<sub>0.10</sub>As
+const ALLOY_RE = /([A-Z][a-z]?)(\d*\.\d+)/g;
+function subHTML(s) { return esc(s).replace(ALLOY_RE, "$1<sub>$2</sub>"); }
+// the same for SVG text (lowered, smaller tspans; works in every SVG renderer)
+function subSVG(s) { return esc(s).replace(ALLOY_RE, '$1<tspan dy="3.5" font-size="0.75em">$2</tspan><tspan dy="-3.5">\u200b</tspan>'); }
 function matText(L) {
   const f = matFormula(L.material, L.x, L.y);
   let t = f || L.material;
@@ -276,8 +289,8 @@ function renderStack() {
   const boundary = (L, key, label) => {
     const n = key === "top" ? S.nodeInfo?.top : S.nodeInfo?.substrate;
     rows.push(`<div class="row boundary ${selKey === key ? "sel" : ""}" data-path="${key}">
-      <div class="nm"><span class="caret"></span><span class="sw" style="background:${layerColor(L)}"></span><span class="t">${esc(L.name)}</span> <span class="badge">${label}</span></div>
-      <div class="mat">${esc(matText(L))}</div><div class="num">∞</div><div class="num">${n ? fmt(n.n, 4) : ""}</div></div>`);
+      <div class="nm"><span class="caret"></span><span class="sw" style="background:${layerColor(L)}"></span><span class="t">${subHTML(L.name)}</span> <span class="badge">${label}</span></div>
+      <div class="mat">${subHTML(matText(L))}</div><div class="num">∞</div><div class="num">${n ? fmt(n.n, 4) : ""}</div></div>`);
   };
   boundary(S.design.top, "top", "exit medium");
   const walk = (items, path, depth) => {
@@ -289,7 +302,7 @@ function renderStack() {
         const k0 = k; const countLayers = (g) => g.children.reduce((a, c) => a + (c.kind === "group" ? countLayers(c) : 1), 0);
         const per = sumThick(it, k0, info);
         rows.push(`<div class="row group ${selKey === key ? "sel" : ""}" data-path="${key}" ${pad} title="${countLayers(it)} layer${countLayers(it) === 1 ? "" : "s"} per period, repeated ${it.repeats}×">
-          <div class="nm"><span class="caret" data-toggle="${it._id}">${coll ? "▸" : "▾"}</span><span class="t">${esc(it.name)}</span>
+          <div class="nm"><span class="caret" data-toggle="${it._id}">${coll ? "▸" : "▾"}</span><span class="t">${subHTML(it.name)}</span>
           <span class="rep">× <input type="number" min="0" step="1" value="${it.repeats}" data-rep="${key}"></span>
           ${it.role !== "none" ? `<span class="badge role">${ROLES.find((r) => r[0] === it.role)?.[1] || it.role}</span>` : ""}</div>
           <div class="num" title="period × repeats">${fmt(per * it.repeats, 4)}</div><div class="num"></div></div>`);
@@ -297,9 +310,9 @@ function renderStack() {
       } else {
         const ni = info[k++] || {};
         rows.push(`<div class="row ${selKey === key ? "sel" : ""}" data-path="${key}" ${pad}>
-          <div class="nm"><span class="caret"></span><span class="sw" style="background:${layerColor(it)}"></span><span class="t">${esc(it.name)}</span>
+          <div class="nm"><span class="caret"></span><span class="sw" style="background:${layerColor(it)}"></span><span class="t">${subHTML(it.name)}</span>
           ${it.layer_type === "active" ? '<span class="badge active">active</span>' : ""}${it.marked ? '<span class="badge mark" title="marked for cavity tuning">λ</span>' : ""}</div>
-          <div class="mat">${esc(matText(it))}</div><div class="num">${fmt(ni.d, 4)}</div><div class="num">${fmt(ni.n, 4)}</div></div>`);
+          <div class="mat">${subHTML(matText(it))}</div><div class="num">${fmt(ni.d, 4)}</div><div class="num">${fmt(ni.n, 4)}</div></div>`);
       }
     });
   };
@@ -534,7 +547,7 @@ function wrapLegend(html, width = 34) {
     if (cur) out.push(cur); return out.join("<br>");
   }).join("<br>");
 }
-// alloy formula with subscripted compositions: Al0.90GaAs -> Al<sub>0.90</sub>GaAs
+// alloy formula with subscripted compositions: Al0.90Ga0.10As -> Al<sub>0.90</sub>Ga<sub>0.10</sub>As
 function subFormula(f) { return String(f).replace(/([A-Za-z])(\d*\.\d+|\d+)/g, "$1<sub>$2</sub>"); }
 // run relayouts on one plot one after another
 function plotQueue(el, fn) { el._q = (el._q || Promise.resolve()).then(fn).catch((e) => console.warn(e)); return el._q; }

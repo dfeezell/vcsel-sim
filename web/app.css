@@ -115,7 +115,7 @@ body.view-diagram .stack-diagram { display: flex; flex-direction: column; flex: 
 .dg-wrap { position: relative; }
 .dg-layer { display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; cursor: pointer;
   overflow: hidden; white-space: nowrap; position: relative; }
-.dg-layer .dg-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 3em; }
+.dg-layer .dg-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; flex: 0 0 auto; max-width: 62%; min-width: 3em; }
 .dg-layer .dg-meta { margin-left: auto; opacity: .85; font-family: var(--mono); font-size: 11px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
 .dg-layer .badge { background: rgba(255,255,255,.85); }
 .dg-blocks.fitted .dg-bnd { padding: 2px 8px; }

@@ -353,12 +353,12 @@ def register(key, fn, label, category, x_label=None, y_label=None, x_range=(0, 1
 
 register("AlGaAs", algaas, "AlxGa1-xAs", "GaAs-based", "x (Al)", None, bandgap=eg_algaas,
          reference="M. A. Afromowitz, Solid State Commun. 15, 59 (1974). Same model as Vertical "
-                   "(reproduces Vertical's GaAs/Al0.2GaAs/AlAs indices to 1e-5).",
+                   "(reproduces Vertical's GaAs/Al0.20Ga0.80As/AlAs indices to 1e-5).",
          notes="Modified single-oscillator model; complex above the band gap (approximate absorption). "
                "x = 0 is GaAs, x = 1 is AlAs.")
 register("InGaAs", ingaas, "InxGa1-xAs", "GaAs-based", "x (In)", None, x_range=(0, 0.5), bandgap=eg_ingaas,
          reference="M. Takagi, Jpn. J. Appl. Phys. 17, 1813 (1978) (Wemple-DiDomenico parameters). "
-                   "Same model as Vertical (In0.2GaAs: 3.57717 at 980 nm).",
+                   "Same model as Vertical (In0.20Ga0.80As: 3.57717 at 980 nm).",
          notes="Real index only; typically used for strained quantum wells on GaAs. Band gap is the "
                "unstrained bulk value at 300 K (Goetz et al., J. Appl. Phys. 54, 4543 (1983)).", default_type="active")
 register("InGaAsP", ingaasp, "InGaAsP / InP (lattice matched)", "InP-based", "y (As)", None,

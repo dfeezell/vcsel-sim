@@ -5,12 +5,12 @@
 /* ------------------------------------------------------------------ building blocks for the palette */
 const PALETTE = {
   layer: { label: "Layer", hint: "single layer (GaAs, quarter wave)", make: () => newLayer() },
-  dbr: { label: "DBR", hint: "Al0.9GaAs / GaAs quarter-wave pair × 20", make: () => newGroup({ name: "DBR", repeats: 20, role: "none",
-    children: [newLayer({ name: "Al0.90GaAs", x: 0.9 }), newLayer({ name: "GaAs", x: 0 })] }) },
-  qw: { label: "QWs", hint: "8 nm GaAs barrier + 6 nm In0.2GaAs well × 3", make: () => newGroup({ name: "Active region", repeats: 3, role: "active",
+  dbr: { label: "DBR", hint: "Al0.90Ga0.10As / GaAs quarter-wave pair × 20", make: () => newGroup({ name: "DBR", repeats: 20, role: "none",
+    children: [newLayer({ name: "Al0.90Ga0.10As", x: 0.9 }), newLayer({ name: "GaAs", x: 0 })] }) },
+  qw: { label: "QWs", hint: "8 nm GaAs barrier + 6 nm In0.20Ga0.80As well × 3", make: () => newGroup({ name: "Active region", repeats: 3, role: "active",
     children: [newLayer({ name: "GaAs barrier", thickness: 8, thickness_unit: "nm" }),
-      newLayer({ name: "In0.2GaAs QW", material: "InGaAs", x: 0.2, thickness: 6, thickness_unit: "nm", layer_type: "active" })] }) },
-  spacer: { label: "Spacer", hint: "Al0.3GaAs, quarter wave, marked for tuning", make: () => newLayer({ name: "Al0.30GaAs spacer", x: 0.3, marked: true }) },
+      newLayer({ name: "In0.20Ga0.80As QW", material: "InGaAs", x: 0.2, thickness: 6, thickness_unit: "nm", layer_type: "active" })] }) },
+  spacer: { label: "Spacer", hint: "Al0.30Ga0.70As, quarter wave, marked for tuning", make: () => newLayer({ name: "Al0.30Ga0.70As spacer", x: 0.3, marked: true }) },
   group: { label: "Group", hint: "repeated block to drop layers into", make: () => newGroup({ name: "Group", repeats: 1, children: [] }) },
   oxide: { label: "Oxide", hint: "AlOx aperture layer, 20 nm", make: () => newLayer({ name: "AlOx", material: "AlOx", thickness: 20, thickness_unit: "nm" }) },
 };
@@ -38,7 +38,7 @@ function diagramHTML(design, info, opts = {}) {
   const nodes = info?.nodes || []; let k = 0;
   const ed = !!opts.editable; const selKey = opts.selKey || "";
   const bnd = (L, key, label, n) => `<div class="dg-bnd ${selKey === key ? "sel" : ""}" data-path="${key}" data-drop="${key === "top" ? "after" : "before"}">
-      <span class="dg-sw" style="background:${layerColor(L)}"></span><b>${esc(L.name)}</b><span class="dg-meta">${label} · ${esc(matText(L))}${n ? ` · n ${fmt(n.n, 4)}` : ""}</span></div>`;
+      <span class="dg-sw" style="background:${layerColor(L)}"></span><b>${subHTML(L.name)}</b><span class="dg-meta">${label} · ${subHTML(matText(L))}${n ? ` · n ${fmt(n.n, 4)}` : ""}</span></div>`;
   // Layers are drawn flush (touching, like Vertical); each group's name and repeat box sit in a
   // bracketed label column to the left, one column per nesting level.
   const LW = DG_LABEL_W;
@@ -52,7 +52,7 @@ function diagramHTML(design, info, opts = {}) {
       const rep = ed ? `<span class="rep">×<input type="number" min="0" step="1" value="${it.repeats}" data-rep="${key}" title="Repetitions"></span>` : `<span class="rep">×${it.repeats}</span>`;
       return `<div class="dg-group ${selKey === key ? "sel" : ""}" data-path="${key}" ${ed ? 'draggable="true"' : ""}>
         <div class="dg-glab" data-path="${key}" data-drop="head" style="left:${-(maxD - depth) * LW}px;width:${LW}px" title="${esc(it.name)}: repeated ${it.repeats}×${roleTxt ? ` (${esc(roleTxt)})` : ""}${ed ? ". Drag to move; drop layers here to add them to this group" : ""}">
-          <div class="dg-gtxt"><span class="dg-name">${esc(it.name)}</span>${rep}${roleTxt ? `<span class="dg-role">${esc(roleTxt)}</span>` : ""}</div></div>
+          <div class="dg-gtxt"><span class="dg-name">${subHTML(it.name)}</span>${rep}${roleTxt ? `<span class="dg-role">${esc(roleTxt)}</span>` : ""}</div></div>
         ${body}</div>`;
     }
     const ni = nodes[k++] || {};
@@ -61,7 +61,7 @@ function diagramHTML(design, info, opts = {}) {
     const tags = `${it.layer_type === "active" ? '<span class="badge active">active</span>' : ""}${it.marked ? '<span class="badge mark" title="marked for cavity tuning">λ</span>' : ""}`;
     return `<div class="dg-layer ${selKey === key ? "sel" : ""}" data-path="${key}" data-drop="layer" ${ed ? 'draggable="true"' : ""}
         style="height:${h.toFixed(1)}px;background:${bg};color:${fg}" title="${esc(it.name)} — ${esc(matText(it))}, ${fmt(ni.d, 5)} nm, n = ${fmt(ni.n, 5)}">
-      <span class="dg-name">${esc(it.name)}</span>${tags}<span class="dg-meta">${esc(matText(it))} · ${fmt(ni.d, 4)} nm · n ${fmt(ni.n, 4)}</span></div>`;
+      <span class="dg-name">${subHTML(it.name)}</span>${tags}<span class="dg-meta">${(it.name || "").trim() === matText(it) ? "" : subHTML(matText(it)) + " · "}${fmt(ni.d, 4)} nm · n ${fmt(ni.n, 4)}</span></div>`;
   }).join("");
   return `<div class="dg-wrap" style="padding-left:${maxD * LW}px">${bnd(design.top, "top", "exit medium", info?.top)}<div class="dg-stack" data-path="stack">${walk(design.stack, ["stack"])}</div>${bnd(design.substrate, "sub", "substrate", info?.substrate)}</div>`;
 }
@@ -279,11 +279,11 @@ function stackFigureSVG(design, info, title) {
   const F = 'font-family="Arial, Helvetica, sans-serif"';
   const out = []; const brackets = []; let y = title ? 46 : 16;
   const hgt = (d) => (d > 0 ? Math.max(22, Math.min(72, 14 + 26 * Math.log10(1 + d / 8))) : 22);
-  const label = (L, ni) => `${esc(L.name)} — ${esc(matText(L))}, ${fmt(ni.d, 5)} nm, n = ${fmt(ni.n, 5)}${L.layer_type === "active" ? " (active)" : ""}`;
+  const label = (L, ni) => `${subSVG(L.name)} — ${subSVG(matText(L))}, ${fmt(ni.d, 5)} nm, n = ${fmt(ni.n, 5)}${L.layer_type === "active" ? " (active)" : ""}`;
   const bnd = (L, txt, n) => {
     out.push(`<rect x="${BX}" y="${y}" width="${BW}" height="30" fill="url(#hatch)" stroke="#555" stroke-width="1"/>
       <rect x="${BX}" y="${y}" width="${BW}" height="30" fill="${layerColor(L)}" fill-opacity="0.35"/>
-      <text x="${TX}" y="${y + 19}" font-size="13" ${F} fill="#333"><tspan font-style="italic">${esc(L.name)}</tspan> — ${txt}, ${esc(matText(L))}${n ? `, n = ${fmt(n.n, 5)}` : ""}</text>`);
+      <text x="${TX}" y="${y + 19}" font-size="13" ${F} fill="#333"><tspan font-style="italic">${subSVG(L.name)}</tspan> — ${txt}, ${subSVG(matText(L))}${n ? `, n = ${fmt(n.n, 5)}` : ""}</text>`);
     y += 30;
   };
   bnd(design.top, "exit medium", info?.top);
@@ -306,7 +306,7 @@ function stackFigureSVG(design, info, title) {
     const x = BX - 10 - (maxD - 1 - b.depth) * LW; const xm = x - 8;
     out.push(`<path d="M${x} ${b.y0 + 1} H${xm} V${b.y1 - 1} H${x}" fill="none" stroke="#1f5fae" stroke-width="1.6"/>`);
     const cy = (b.y0 + b.y1) / 2; const role = b.role && b.role !== "none" ? (ROLES.find((r) => r[0] === b.role)?.[1] || b.role) : "";
-    out.push(`<text x="${xm - 6}" y="${(role ? cy - 2 : cy + 4.5).toFixed(1)}" text-anchor="end" font-size="13" ${F} fill="#1f5fae" font-weight="bold">${esc(b.name)} ×${b.rep}</text>`);
+    out.push(`<text x="${xm - 6}" y="${(role ? cy - 2 : cy + 4.5).toFixed(1)}" text-anchor="end" font-size="13" ${F} fill="#1f5fae" font-weight="bold">${subSVG(b.name)} ×${b.rep}</text>`);
     if (role) out.push(`<text x="${xm - 6}" y="${(cy + 13).toFixed(1)}" text-anchor="end" font-size="11.5" ${F} fill="#1f5fae">${esc(role)}</text>`);
   }
   const H = y + 16;
