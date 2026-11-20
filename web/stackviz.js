@@ -335,6 +335,8 @@ const PLOT_TOOLS = [["zoom", "⬚ Zoom", "Drag a box to zoom (double-click the p
 function addPlotBar(el) {
   if (!el || el.previousElementSibling?.classList.contains("plot-bar")) return;
   const bar = document.createElement("div"); bar.className = "plot-bar";
+  // double-click resets through the same path as the Reset button (Plotly's own autorange reset is off)
+  el.addEventListener("dblclick", () => bar.querySelector('[data-pb="reset"]')?.click());
   bar.innerHTML = PLOT_TOOLS.map(([k, l, t]) => `<button class="pb" data-pb="${k}" title="${t}">${l}</button>`).join("");
   el.parentNode.insertBefore(bar, el);
   const zoomBy = (f) => {
@@ -359,7 +361,12 @@ function addPlotBar(el) {
       const home = el._home; const upd = {};
       if (home) for (const [ax, r] of Object.entries(home)) { upd[`${ax}.range`] = r.slice(); upd[`${ax}.autorange`] = false; }
       else for (const ax of Object.keys(el.layout || {}).filter((a) => /^[xy]axis\d*$/.test(a))) upd[`${ax}.autorange`] = true;
-      plotQueue(el, () => Plotly.relayout(el, upd));
+      plotQueue(el, () => Plotly.relayout(el, upd)).then(() => {
+        // if the relayout did not land (Plotly error), redraw from the last full plot instead
+        const L = el._fullLayout || {};
+        const off = home && Object.entries(home).some(([ax, r]) => !L[ax] || Math.abs(L[ax].range[0] - r[0]) + Math.abs(L[ax].range[1] - r[1]) > 1e-9 * (1 + Math.abs(r[1] - r[0])));
+        if (off && el._last) plotQueue(el, () => Plotly.react(el, el._last.data, JSON.parse(el._last.layout), el._last.config));
+      });
     } else {
       Plotly.downloadImage(el, { format: k, width: el.clientWidth, height: el.clientHeight, scale: k === "png" ? 4 : 1,
         filename: `${(S.design?.name || "vcsel").replace(/[^\w.-]+/g, "_")}_${el.id.replace("plot-", "")}` });

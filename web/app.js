@@ -484,17 +484,63 @@ $("#design-lambda").addEventListener("change", (e) => { S.design.design_waveleng
 // remember each plot's axis ranges after every full redraw, for the Reset button
 const _plotlyReact = Plotly.react;
 Plotly.react = function (el, ...args) {
+  const [data, layout, config] = args;
+  try { el._last = { data, layout: JSON.stringify(layout || {}), config }; } catch (_) { /* */ }
   return Promise.resolve(_plotlyReact.call(Plotly, el, ...args)).then((gd) => {
     const g = gd || el, L = g._fullLayout || {}; const home = {};
     for (const ax of Object.keys(L).filter((a) => /^[xy]axis\d*$/.test(a))) if (L[ax] && Array.isArray(L[ax].range)) home[ax] = L[ax].range.slice();
-    g._home = home; return g;
+    g._home = home;
+    if (g._autoLegend) placeLegend(g);
+    return g;
   });
 };
+// legend inside the axes, in the corner where it covers the fewest data points
+function placeLegend(el) {
+  const L = el._fullLayout; if (!L || !L.showlegend) return;
+  const lg = el.querySelector(".legend"); if (!lg) return;
+  const bb = lg.getBBox ? lg.getBBox() : null; const xa = L.xaxis, ya = L.yaxis; if (!bb || !xa || !ya) return;
+  const fw = (bb.width + 8) / xa._length, fh = (bb.height + 8) / ya._length;
+  const frac = (ax, v) => { const r = ax.range; const t = ax.type === "log" ? Math.log10(Math.max(v, 1e-300)) : v; return (t - r[0]) / (r[1] - r[0]); };
+  const corners = [["right", "top", 0.99, 0.98], ["left", "top", 0.01, 0.98], ["right", "bottom", 0.99, 0.02], ["left", "bottom", 0.01, 0.02]];
+  let best = null;
+  for (const [xan, yan, x, y] of corners) {
+    const x0 = xan === "right" ? x - fw : x, x1 = x0 + fw, y0 = yan === "top" ? y - fh : y, y1 = y0 + fh;
+    let n = 0;
+    for (const tr of el.data || []) {
+      if (tr.visible === false || !tr.x || !tr.y) continue;
+      const yax = tr.yaxis === "y2" ? L.yaxis2 : ya;
+      const step = Math.max(1, Math.floor(tr.x.length / 1500));
+      for (let i = 0; i < tr.x.length; i += step) {
+        const v = tr.y[i]; if (v == null || !Number.isFinite(v)) continue;
+        const fx = frac(xa, tr.x[i]), fy = frac(yax, v);
+        if (fx >= x0 && fx <= x1 && fy >= y0 && fy <= y1) n++;
+      }
+    }
+    if (!best || n < best.n) best = { n, xan, yan, x, y };
+    if (n === 0) break;
+  }
+  const cur = L.legend;
+  if (best && (cur.xanchor !== best.xan || cur.yanchor !== best.yan))
+    plotQueue(el, () => Plotly.relayout(el, { "legend.x": best.x, "legend.xanchor": best.xan, "legend.y": best.y, "legend.yanchor": best.yan }));
+}
+// wrap long legend text at about `width` characters (Plotly legends do not wrap on their own)
+function wrapLegend(html, width = 34) {
+  html = html.replace(/ = /g, "&nbsp;=&nbsp;");          // keep "λ0 = 980 nm" on one line
+  html = html.replace(/(\d) nm/g, "$1&nbsp;nm");
+  return html.split("<br>").map((line) => {
+    const words = line.split(" "); const out = []; let cur = "";
+    const vis = (s) => s.replace(/<[^>]+>/g, "").replace(/&[a-z]+;/g, "x").length;
+    for (const w of words) { if (cur && vis(cur) + 1 + vis(w) > width) { out.push(cur); cur = w; } else cur = cur ? cur + " " + w : w; }
+    if (cur) out.push(cur); return out.join("<br>");
+  }).join("<br>");
+}
+// alloy formula with subscripted compositions: Al0.90GaAs -> Al<sub>0.90</sub>GaAs
+function subFormula(f) { return String(f).replace(/([A-Za-z])(\d*\.\d+|\d+)/g, "$1<sub>$2</sub>"); }
 // run relayouts on one plot one after another
 function plotQueue(el, fn) { el._q = (el._q || Promise.resolve()).then(fn).catch((e) => console.warn(e)); return el._q; }
 window.plotQueue = plotQueue;
 const PLOT_FONT = { family: "Inter, Arial, sans-serif", size: 13, color: "#18202b" };
-const PLOT_CONFIG = { responsive: true, displaylogo: false, toImageButtonOptions: { format: "png", scale: 4, filename: "vcsel_plot" },
+const PLOT_CONFIG = { responsive: true, displaylogo: false, doubleClick: false, toImageButtonOptions: { format: "png", scale: 4, filename: "vcsel_plot" },
   modeBarButtonsToRemove: ["lasso2d", "select2d"], displayModeBar: false };   // labelled toolbar above each plot instead (stackviz.js)
 function xmap(z, P) {
   const units = $("#f-units").value; const origin = $("#f-origin").value;
@@ -631,12 +677,13 @@ function plotRefl() {
     // stopband where the side lobes stay low; 1 − R and T plots lower left
     legend: { x: 0.01, xanchor: "left", y: mode === "loss" || mode === "T" ? 0.02 : 0.98, yanchor: mode === "loss" || mode === "T" ? "bottom" : "top",
       bgcolor: "rgba(255,255,255,0.88)", bordercolor: "#ced4da", borderwidth: 1, font: { size: 11.5 },
-      title: { text: `${esc(S.design.name || "Design")}, λ<sub>design</sub> = ${R.design_wavelength} nm`, font: { size: 11.5 } } },
+      title: { text: wrapLegend(`${esc(S.design.name || "Design")}, λ<sub>design</sub> = ${R.design_wavelength} nm`), font: { size: 11.5 } } },
     shapes: [{ type: "line", x0: R.design_wavelength, x1: R.design_wavelength, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],
     // spectra that could not be computed: say why right on the plot, not only in the table below
     annotations: errs.map((e, i) => ({ xref: "paper", yref: "paper", x: 0.5, y: 0.5 - i * 0.16, showarrow: false, align: "center", width: 520,
       text: esc(e).replace(/(.{1,80})(\s|$)/g, "$1<br>"), font: { size: 12.5, color: "#b35c00" }, bgcolor: "#fff8e6", bordercolor: "#f0c36d", borderpad: 6 })),
   };
+  $("#plot-refl")._autoLegend = true;
   Plotly.react($("#plot-refl"), traces, layout, PLOT_CONFIG);
   const rows = Object.entries(R.spectra).filter(([, sp]) => !sp.error).map(([p, sp]) => `<tr><td><span class="sw" style="display:inline-block;background:${PART_COLOR[p]}"></span> ${PART_LABEL[p]}</td>
     <td class="n">${fmt(sp.at_design.R, 7)}</td><td class="n">${fmt(sp.at_design.phase_deg, 4)}</td><td class="n">${fmt(sp.at_design.T, 4)}</td>
@@ -680,6 +727,14 @@ const RES = [
     ["effective_length", "Effective cavity length L (energy-based)", "nm", "Γ<sub>enh</sub> L<sub>a</sub> / Γ(energy-weighted)"],
     ["@L_cav_between", "Cavity length (between the DBRs)", "nm", "physical thickness of all layers between the Top DBR and Bottom DBR groups"],
     ["@cavity_optical_waves", "Cavity optical thickness", "λ", "Σ n d / λ<sub>las</sub> over the layers between the DBR groups (1 = one-wavelength cavity)"]]],
+  ["Mirrors at λ<sub>las</sub>", [
+    ["@top.periods", "Top DBR periods", "", "repeats of the Top DBR group"],
+    ["@R_top_passive", "Top DBR reflectance (from cavity)", "", "passive mirror, light incident from the cavity layer next to it"],
+    ["@top.L_eff_phase", "Top DBR penetration depth", "nm", "computed: ½|dφ/dβ| of the mirror's actual reflection phase, β = 2πn/λ in the cavity layer next to it; valid for any mirror and includes material dispersion (group delay), so it is typically 10–15% longer than the dispersion-free Coldren A7.25 value in the hand-check section below"],
+    ["@bottom.periods", "Bottom DBR periods", "", "repeats of the Bottom DBR group"],
+    ["@R_bottom_passive", "Bottom DBR reflectance (from cavity)", "", "passive mirror, light incident from the cavity layer next to it"],
+    ["@bottom.L_eff_phase", "Bottom DBR penetration depth", "nm", "computed from the reflection phase, as above"],
+    ["@phase.L", "Effective cavity length from penetration depths", "nm", "L<sub>cav</sub> + both computed penetration depths (compare the energy-based L above)"]]],
   ["Efficiency", [
     ["internal_efficiency", "Internal efficiency η<sub>i</sub>", "", "input"],
     ["ext_eff", "External differential efficiency", "", "η<sub>i</sub> × RT transmission / RT gain", "external efficiency"],
@@ -726,7 +781,7 @@ function renderResults() {
   for (const [sec, rows] of RES) {
     h += `<tr class="sec"><td colspan="${showV ? 5 : 4}">${sec}</td></tr>`;
     for (const [key, label, unit, def, vkey] of rows) {
-      const val = key.startsWith("@") ? r.cavity?.[key.slice(1)] : r[key];
+      const val = key.startsWith("@") ? key.slice(1).split(".").reduce((o, k) => (o == null ? undefined : o[k]), r.cavity) : r[key];
       if (key.startsWith("@") && val == null) continue;
       h += `<tr><td>${label}</td><td class="n">${fmt(val, 6)}</td><td>${unit || ""}</td>${showV ? `<td class="n">${vkey && V[vkey] !== undefined ? fmt(V[vkey], 6) : ""}</td>` : ""}<td class="def">${def || ""}</td></tr>`;
     }
@@ -791,7 +846,8 @@ function plotMaterial() {
     xaxis: { title: { text: "Wavelength (nm)" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
     yaxis: { title: { text: "n" }, showline: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
     yaxis2: { title: { text: "k" }, overlaying: "y", side: "right", showgrid: false, zeroline: false, showline: true, linecolor: "#444", ticks: "outside" },
-    legend: { x: 0.98, xanchor: "right", y: 0.97, yanchor: "top", bgcolor: "rgba(255,255,255,0.85)", bordercolor: "#ced4da", borderwidth: 1 }, shapes }, PLOT_CONFIG);
+    legend: { x: 0.99, xanchor: "right", y: 0.98, yanchor: "top", bgcolor: "rgba(255,255,255,0.85)", bordercolor: "#ced4da", borderwidth: 1 }, shapes }, PLOT_CONFIG);
+  $("#plot-mat")._autoLegend = true;
 }
 
 
@@ -879,8 +935,8 @@ function runDbr() {
   plotDbr();
 }
 function dbrDesc(withPairs = true) {
-  const a = dbrSpec("first").name, b = dbrSpec("second").name, inc = dbrSpec("incident").name, ex = dbrSpec("exit").name;
-  return `${withPairs ? $("#dbr-pairs").value + "-pair " : ""}${a}/${b} DBR, λ<sub>0</sub> = ${$("#dbr-lam").value} nm<br>from ${inc}, exit ${ex}`;
+  const nm = (k) => { const s = dbrSpec(k); return s.material === "Generic" ? s.name : subFormula(s.name); };
+  return wrapLegend(`${withPairs ? $("#dbr-pairs").value + "-pair " : ""}${nm("first")}/${nm("second")} DBR, λ<sub>0</sub> = ${$("#dbr-lam").value} nm<br>from ${nm("incident")}, exit ${nm("exit")}`);
 }
 function legendOn(tab) { const c = $(`${tab} .legend-tog`); return !c || c.checked; }
 function insideLegend(where = "top") {
@@ -893,10 +949,12 @@ function plotDbr() {
   const y = mode === "R" ? sp.R : mode === "phase" ? sp.phase_deg : sp.R.map((r) => (r == null ? null : Math.max(1 - r, 1e-12)));
   const yt = { R: "Reflectance R", phase: "Phase of r (deg)", loss: "1 − R" }[mode];
   const desc = dbrDesc();
+  $("#plot-dbr")._autoLegend = true; $("#plot-dbr-pairs")._autoLegend = true;
+  const blank = sp.R.some((r) => r == null);
+  $("#dbr-blank-note").textContent = blank ? `The spectrum is left blank below ${Math.round(Math.max(...sp.wavelength.filter((_, i) => sp.R[i] == null)))} nm, where the incident medium absorbs strongly and reflectance seen from inside it is not defined.` : "";
   Plotly.react($("#plot-dbr"), [{ x: sp.wavelength, y, type: "scatter", mode: "lines", name: desc, line: { color: "#1f5fae", width: 1.8 }, hovertemplate: "%{x:.2f} nm<br>%{y:.6g}<extra></extra>" }], {
     font: PLOT_FONT, margin: { l: 70, r: 24, t: 14, b: 52 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff", showlegend: legendOn("#tab-dbr"),
     legend: insideLegend(mode === "loss" ? "bottom" : "top"),
-    annotations: sp.R.some((r) => r == null) ? [{ xref: "paper", yref: "paper", x: 0.01, y: 0.02, xanchor: "left", yanchor: "bottom", showarrow: false, text: "blank where the incident medium absorbs", font: { size: 11, color: "#868e96" } }] : [],
     xaxis: { title: { text: "Wavelength (nm)" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false },
     yaxis: { title: { text: yt }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false, type: mode === "loss" ? "log" : "linear", range: mode === "R" ? [0, 1.02] : undefined, exponentformat: "power" },
     shapes: [{ type: "line", x0: lam0, x1: lam0, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],

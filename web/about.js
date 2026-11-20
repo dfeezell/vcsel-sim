@@ -39,7 +39,7 @@ Coldren &amp; Corzine give the penetration depth of a quarter-wave mirror in clo
 <span class="eq">m<sub>eff</sub> = tanh[m ln(n<sub>2</sub>/n<sub>1</sub>)] / tanh[ln(n<sub>2</sub>/n<sub>1</sub>)],   L<sub>eff</sub> = ½ m<sub>eff</sub> Λ [1/(1+r²) − 1/(2m<sub>eff</sub>)]</span>
 <p>measured from the first low-index layer. A7.25 is exact, but it measures the phase delay of a wave travelling at the mirror's average index
 n̄ = λ/2Λ. Measured in the cavity medium next to the mirror instead, the same delay corresponds to a length shorter by n̄/n<sub>cav</sub>
-(about 9% for AlAs/GaAs mirrors next to GaAs). For comparison the Results tab also lists depths taken from the computed
+(about 9% for AlAs/GaAs mirrors next to GaAs). The main Results table (Mirrors section) lists the depths computed from the actual
 reflection phase, ½|dφ/dβ| with β = 2πn<sub>cav</sub>/λ, which also cover mirrors that are not ideal quarter-wave stacks or that start with a
 low-index layer next to a lower-index cavity. The exact, energy-weighted Γ in the Confinement section needs no penetration depth at all.
 A high-index mirror layer that touches the cavity is counted in the cavity. The effective length is then
