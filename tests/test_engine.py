@@ -323,3 +323,12 @@ def test_center_wells_recovers_enhancement_after_one_sided_layer():
     rep = center_wells(s)
     assert abs(rep["resonance"] - 980) < 1e-3
     assert rep["enhancement_after"] > rep["enhancement_before"] and rep["enhancement_after"] > 1.86
+
+
+def test_alinn_and_sapphire():
+    from vcsel_sim import materials as m
+    n = lambda *a: complex(m.index(*a)).real
+    assert abs(n("AlInN", 450, 1.0) - n("AlGaN", 450, 1.0)) < 1e-9          # AlN end point shared with AlGaN (Alam 2020)
+    assert 0.2 < n("GaN", 450) - n("AlInN", 450, 0.82) < 0.35               # lattice-matched Al0.82In0.18N/GaN contrast
+    assert abs(m.eg_alinn(0.0) - 0.65) < 1e-12 and abs(m.eg_alinn(1.0) - 6.015) < 1e-12
+    assert abs(n("Sapphire_c", 450) - n("Al2O3", 450)) < 1e-12 and 1.77 < n("Sapphire_c", 450) < 1.79

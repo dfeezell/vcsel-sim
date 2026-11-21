@@ -242,7 +242,7 @@ const AL_RAMP = [[0, "#2f6fd0"], [0.15, "#22a6b3"], [0.3, "#37b24d"], [0.5, "#94
 const MAT_COLORS = { AlGaAs: (x) => ramp(AL_RAMP, x), AlGaAs_Gehrsitz: (x) => ramp(AL_RAMP, x), InGaAs: (x) => ramp([[0, "#2f6fd0"], [0.1, "#9c36b5"], [0.3, "#c2255c"]], x),
   InGaAsP: (y) => ramp([[0, "#e599f7"], [1, "#5f3dc4"]], y), InGaAsP_xy: (x, y) => ramp([[0, "#e599f7"], [1, "#5f3dc4"]], y), InP: () => "#f783ac",
   InAlGaAs: (x) => ramp([[0.3, "#5f3dc4"], [1, "#d0bfff"]], x), AlGaInP: (x) => ramp([[0, "#a61e4d"], [0.51, "#ffc9c9"]], x), AlGaInP_Adachi: (x) => ramp([[0, "#862e9c"], [0.51, "#fcc2d7"]], x),
-  GaN: () => "#1864ab", AlN: () => "#a5d8ff", SiO2: () => "#e9ecef",
+  GaN: () => "#1864ab", AlN: () => "#a5d8ff", AlInN: (x) => ramp([[0, "#5f3dc4"], [0.82, "#74c0fc"], [1, "#a5d8ff"]], x), Sapphire_c: () => "#e5dbff", SiO2: () => "#e9ecef",
   Si3N4: () => "#ced4da", Ta2O5: () => "#ffd43b", TiO2: () => "#fab005", TiO2_rutile: () => "#f08c00", HfO2: () => "#ffe066",
   Nb2O5: () => "#fcc419", Al2O3: () => "#d0bfff", Al2O3_film: () => "#d0bfff", AlOx: () => "#495057", Air: () => "#ffffff",
   Generic: () => "#adb5bd", Au: () => "#d4a017", Ag: () => "#c0c0c0", Ti: () => "#7d8597", Cr: () => "#6c757d", Pt: () => "#a5a5a5" };
@@ -265,6 +265,7 @@ function matFormula(material, x, y) {
     case "InGaAs": return tern("In", "Ga", "As", x);
     case "AlGaN": return tern("Al", "Ga", "N", x);
     case "InGaN": return tern("In", "Ga", "N", x);
+    case "AlInN": return tern("Al", "In", "N", x);
     case "AlGaInP": case "AlGaInP_Adachi":
       return is0(x) ? "Ga0.51In0.49P" : is1(x, 0.51) ? "Al0.51In0.49P" : `Al${fx(x)}Ga${fx(0.51 - x)}In0.49P`;
     case "InGaAsP":                                            // lattice matched to InP, Ga = y/2.197

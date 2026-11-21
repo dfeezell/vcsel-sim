@@ -44,7 +44,7 @@ FAMILY = {
     "AlGaAs": "As", "AlGaAs_Gehrsitz": "As", "InGaAs": "As",
     "AlGaInP": "AlGaInP", "AlGaInP_Adachi": "AlGaInP",
     "InP": "P", "InGaAsP": "P", "InGaAsP_xy": "P", "InAlGaAs": "P",
-    "GaN": "N", "AlGaN": "N", "InGaN": "N", "AlN": "N",
+    "GaN": "N", "AlGaN": "N", "InGaN": "N", "AlN": "N", "AlInN": "N",
 }
 
 # Kioupakis et al., APEX 3, 082101 (2010), Table I, f_el-ph, light perpendicular to c; sigma/1e-18 cm^2 = sum a_n (lam/nm)^n

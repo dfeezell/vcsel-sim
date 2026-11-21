@@ -302,6 +302,27 @@ def ingan(lam, x, y=0.0):
     return _adachi_nitride(_E(lam), Eg, a, b)
 
 
+def _bow_inaln(xin):
+    """InAlN band-gap bowing vs In fraction, Alam et al. (2020) Eq. (4): b0/(1+(x/x0)^n)^s."""
+    return 28.3 / (1 + (xin / 0.0100) ** 4) ** 0.122
+
+
+def eg_alinn(x, _=0.0):
+    """Al(x)In(1-x)N fundamental gap (AlN 6.015, InN 0.65 eV) with composition-dependent bowing."""
+    xin = 1 - x
+    return 6.015 * x + 0.65 * xin - _bow_inaln(xin) * x * xin
+
+
+def alinn(lam, x, y=0.0):
+    EgA, aA, bA = _NIT["InN"]; EgB, aB, bB = _NIT["AlN"]   # Alam et al. Eq. (10): A = InN, B = AlN
+    xin = 1 - x
+    Eg = EgA * xin + EgB * x - _bow_inaln(xin) * x * xin      # apparent (E perp c) gap for the index model
+    xi = (Eg - EgB) / (EgA - EgB)
+    a = aA * xi + aB * (1 - xi) - 21.0 * xi * (1 - xi)
+    b = bA * xi + bB * (1 - xi) + 1.8 * xi * (1 - xi)          # beta_b = -1.8
+    return _adachi_nitride(_E(lam), Eg, a, b)
+
+
 # ---------------------------------------------------------------------------
 # Dielectrics, oxides, metals
 # ---------------------------------------------------------------------------
@@ -417,6 +438,18 @@ register("InGaN", ingan, "InxGa1-xN", "Nitrides", "x (In)", None, x_range=(0, 0.
                    "Eg bowing 1.4 eV (I. Vurgaftman and J. R. Meyer, J. Appl. Phys. 94, 3675 (2003)).",
          notes="Wurtzite, ordinary index, below the band gap. Typically used for QWs (use Layer type = active).",
          default_type="active")
+register("AlInN", alinn, "AlxIn1-xN", "Nitrides", "x (Al)", None, x_range=(0, 1), bandgap=eg_alinn,
+         reference="Adachi (1982) model with the InAlN parameters of A. Alam, V. Z. Zubialevich, B. Ghafary and "
+                   "P. J. Parbrook, Sci. Rep. 10, 16205 (2020) (Tables 2-3, beta_a = 21, beta_b = -1.8); band-gap "
+                   "bowing b(x_In) = 28.3/(1+(x_In/0.01)^4)^0.122 eV (their Eq. 4).",
+         notes="Wurtzite, ordinary (E perp c) index, below the band gap. Lattice matched to GaN at x ~ 0.82 "
+               "(Al0.82In0.18N). The authors quote up to ~0.07 scatter against individual measurements, so check "
+               "against your own data where you have it.")
+register("Sapphire_c", al2o3_sapphire, "Sapphire (c-plane substrate)", "Nitrides",
+         reference="I. H. Malitson and M. J. Dodge, J. Opt. Soc. Am. 62, 1405 (1972), ordinary ray.",
+         notes="c-plane Al2O3 substrate for GaN. At normal incidence light travels along the c axis, so every "
+               "polarisation sees the ordinary index. Same data as Al2O3 sapphire under Dielectrics.",
+         valid_nm=(200, 5500), bandgap=lambda x=0, y=0: 8.8)
 register("SiO2", sio2, "SiO2", "Dielectrics", reference="I. H. Malitson, J. Opt. Soc. Am. 55, 1205 (1965).",
          notes="Fused silica bulk. Deposited films may differ by ~0.01-0.02.", default_type="dielectric")
 register("Si3N4", si3n4, "Si3N4", "Dielectrics", reference="K. Luke et al., Opt. Lett. 40, 4823 (2015).",

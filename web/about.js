@@ -147,7 +147,7 @@ J. Taylor and V. Tolstikhin, J. Appl. Phys. 87, 1054 (2000) reproduce them with 
 Electrons: W. Walukiewicz et al., J. Appl. Phys. 51, 2659 (1980), Table III (n-InP, 300 K, 10 µm, uncompensated), with the optical-phonon, ionized-impurity and
 acoustic-phonon parts scaled to the design wavelength as λ<sup>2.5</sup>, λ<sup>3.5</sup> and λ<sup>1.5</sup> (their eq. 2). Impurity scattering grows faster than n, so σ
 depends on the doping: about 0.7×10⁻¹⁸ cm² at 1.55 µm and 10¹⁸ cm⁻³. The InP value is also used for the lattice-matched alloys.</li>
-<li><b>GaN, AlGaN, InGaN, AlN</b>: electrons use the phonon-assisted cross-section of E. Kioupakis, P. Rinke and C. G. Van de Walle, Appl. Phys. Express 3, 082101 (2010)
+<li><b>GaN, AlGaN, InGaN, AlInN, AlN</b> (the alloys take the GaN values, an estimate): electrons use the phonon-assisted cross-section of E. Kioupakis, P. Rinke and C. G. Van de Walle, Appl. Phys. Express 3, 082101 (2010)
 (Table I fit, 380–680 nm, light polarized in the c-plane), about 0.6×10⁻¹⁸ cm² at 450 nm, which matches the measurement of S. Pimputkar et al., J. Cryst. Growth 432, 49 (2015).
 In Mg-doped layers most of the loss is absorption by holes bound to activated Mg acceptors rather than by free holes, so enter the <b>Mg concentration</b> as the doping.
 Two values are offered: the measurement of D. Sizov, R. Bhat and C. Zah, J. Appl. Phys. 113, 203108 (2013), about 1×10⁻¹⁷ cm² per activated Mg, weakly dependent on wavelength
