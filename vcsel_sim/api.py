@@ -228,6 +228,17 @@ def tune_cavity(design_json, target=None):
         return fail(e)
 
 
+def center_wells(design_json, target=None):
+    """Slide the active region onto a standing-wave peak (marked layer above the wells) while keeping the
+    cavity resonant (marked layer below), see retarget.center_wells."""
+    try:
+        s = _structure(design_json)
+        rep = _rt.center_wells(s, target)
+        return ok({"design": s.to_dict(), "report": rep})
+    except Exception as e:
+        return fail(e)
+
+
 def retarget_design(design_json, options_json="{}"):
     """Move the design to a new wavelength (see retarget.py). Returns the new design, a report with the
     absorption checks, and a before / after comparison of the threshold analysis."""

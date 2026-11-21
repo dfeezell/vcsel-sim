@@ -1168,8 +1168,24 @@ $("#btn-tune").addEventListener("click", () => {
     const walkPair = (a, b) => a.forEach((it, i) => { if (it.kind === "group") walkPair(it.children, b[i].children); else it.thickness = b[i].thickness; });
     walkPair(S.design.stack, r.design.stack);
     changed(false); runAll();
-    toast(`Tuned ${rep.layers.length} marked layer(s) by ×${rep.scale.toFixed(5)}: cavity resonance ${rep.resonance.toFixed(4)} nm`, !rep.converged, 5000);
+    if (rep.converged) toast(`Tuned ${rep.layers.length} ${rep.chosen || "marked layer(s)"} by ×${rep.scale.toFixed(5)}: cavity resonance ${rep.resonance.toFixed(4)} nm`, false, 5000);
+    else toast(`Tune cavity failed: no thickness of the ${rep.chosen || "marked layer(s)"} between 2% and 10× of the present value puts the resonance at ${fmt(S.design.design_wavelength, 6)} nm (closest ${rep.resonance.toFixed(2)} nm). The design is unchanged. Mark a thicker layer, or a layer on the other side of the wells.`, true, 9000);
   } catch (e) { toast(e.message, true, 6000); }
+});
+$("#btn-center").addEventListener("click", () => {
+  toast("Centering the wells on the standing wave…", false, 20000);
+  setTimeout(() => {
+    try {
+      const r = call("center_wells", designJSON(), S.design.design_wavelength);
+      const rep = r.report;
+      const walkPair = (a, b) => a.forEach((it, i) => { if (it.kind === "group") walkPair(it.children, b[i].children); else it.thickness = +(+b[i].thickness).toPrecision(9); });
+      walkPair(S.design.stack, r.design.stack);
+      changed(false); runAll();
+      const ch = (x) => `${x.name} ${fmt(x.old, 5)} → ${fmt(x.new, 5)} ${x.unit}`;
+      toast(`Wells centered: Γenh ${fmt(rep.enhancement_before, 4)} → ${fmt(rep.enhancement_after, 4)}, resonance ${fmt(rep.resonance, 7)} nm. ${[...rep.above, ...rep.below].map(ch).join("; ")}.` +
+        (rep.at_limit ? " The upper layer reached its minimum thickness: mark a thicker layer above the wells to center them fully." : "") + " Undo reverts it.", !!rep.at_limit, 10000);
+    } catch (e) { toast(e.message, true, 9000); }
+  }, 30);
 });
 
 boot();

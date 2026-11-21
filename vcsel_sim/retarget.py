@@ -91,8 +91,8 @@ def tune_layers(structure: Structure, layers, target=None, tol=1e-6, maxit=40, s
         # always start the mode search at the target so the solver stays on the cavity mode
         return cold_cavity_mode(Model(structure), target).real - target
 
-    s_lo, s_hi = 0.3, 3.0
-    s0 = float(start) if start and 0.3 < float(start) < 3.0 else 1.0
+    s_lo, s_hi = 0.02, 10.0                 # a layer may go down to 2 % or up to 10x its thickness
+    s0 = float(start) if start and 0.02 < float(start) < 10.0 else 1.0
     s1 = s0 * 1.02
     f0 = resonance(s0)
     if abs(f0) < tol:
@@ -255,3 +255,115 @@ def absorption_check(structure: Structure, lam):
     order = {"error": 0, "warn": 1, "info": 2}
     out.sort(key=lambda w: order[w["level"]])
     return out
+
+
+# ---------------------------------------------------------------------------
+# centre the quantum wells on a standing-wave peak
+# ---------------------------------------------------------------------------
+def _enhancement(structure: Structure, lam):
+    """Gain enhancement factor of the cold cavity at its (real) resonance wavelength `lam`: the mean |E|^2 in
+    the active layers over the local standing-wave mean, as in laser.analyze but without gain."""
+    from .laser import Model, solve_field
+    from . import tmm
+    m = Model(structure)
+    nn, A, B = solve_field(m, lam, 0.0)
+    L = len(m.d)
+    act = m.active
+    idx = np.where(act)[0]
+    I = np.array([float(tmm.layer_intensity_integral(A[j + 1], B[j + 1], nn[j + 1], m.d[j], lam)) for j in idx])
+    nl = nn[1:L + 1][idx]
+    kk = 2 * np.pi * nl / lam
+    dd = m.d[idx]
+    sw = (np.abs(A[1:L + 1][idx]) ** 2 * np.real(tmm._expint(-2 * kk.imag, dd)) +
+          np.abs(B[1:L + 1][idx]) ** 2 * np.real(tmm._expint(2 * kk.imag, dd))) / dd
+    return float(I.sum() / np.sum(sw * dd))
+
+
+def _sides(structure: Structure):
+    """Marked layers entirely above and entirely below the active layers (by position in the expanded stack)."""
+    flat = structure.flatten()
+    act = [i for i, f in enumerate(flat) if f.layer.is_active]
+    if not act:
+        raise ValueError("The structure has no active layer.")
+    first, last = min(act), max(act)
+    pos = {}
+    for i, f in enumerate(flat):
+        if f.layer.marked:
+            pos.setdefault(id(f.layer), (f.layer, []))[1].append(i)
+    above = [L for L, ix in pos.values() if max(ix) < first]
+    below = [L for L, ix in pos.values() if min(ix) > last]
+    return above, below, flat
+
+
+def center_wells(structure: Structure, target=None, iters=10):
+    """Move the active region onto a standing-wave peak while keeping the cavity resonant at `target`.
+
+    The marked layer(s) above the wells are scaled together (this slides the wells along the standing wave);
+    after every step the marked layer(s) below the wells are re-tuned so the cold-cavity resonance stays on
+    `target`. The gain enhancement factor Gamma_enh is maximised by a golden-section search over one
+    standing-wave period (lambda / 2n of the upper layers). Modifies `structure` in place; returns a report."""
+    target = float(target or structure.design_wavelength)
+    above, below, flat = _sides(structure)
+    if not above or not below:
+        raise ValueError("Mark one layer above the wells and one below them (for example the p- and n-side "
+                         "spacers): the upper one moves the wells along the standing wave, the lower one keeps the "
+                         "cavity on resonance.")
+    lam = target
+    baseA = [(L, L.thickness) for L in above]
+    baseB = [(L, L.thickness) for L in below]
+    # physical thickness and mean index of the upper layers (counting repeats)
+    dA = sum(f.thickness_nm for f in flat if any(f.layer is L for L in above))
+    nA = (sum(f.thickness_nm * _n_ref(f.layer, lam) for f in flat if any(f.layer is L for L in above)) / dA) if dA > 0 else 3.0
+    if dA <= 0:
+        raise ValueError("The marked layer above the wells has zero thickness.")
+    q = (lam / (4 * nA)) / dA                  # half a period of |E|^2 (lambda / 4n) as a fraction of dA
+    lo = max(0.02, 1 - q)                      # search one full period of |E|^2 (lambda / 2n), starting at most
+    hi = lo + 2 * q                            # half a period below the design (a layer cannot go below ~0)
+    state = {"tB": 1.0}
+
+    def enh(sA):
+        for L, t0 in baseA:
+            L.thickness = t0 * sA
+        # always re-tune from the original lower thickness, so the cavity keeps its length order
+        for L, t0 in baseB:
+            L.thickness = t0
+        t = tune_layers(structure, [L for L, _ in baseB], target, start=1.0)
+        if not t["converged"]:
+            for L, t0 in baseB:
+                L.thickness = t0
+            return -1.0, t
+        state["tB"] = t["scale"]
+        return _enhancement(structure, target), t
+
+    e0, _ = enh(1.0)
+    # coarse scan over the period (the enhancement is periodic, so a bracket search alone can stall at an edge),
+    # then a golden-section refinement around the best point
+    grid = np.linspace(lo, hi, 9)
+    vals = []
+    for sA in grid:
+        vals.append(enh(sA)[0])
+    k = int(np.argmax(vals))
+    step = grid[1] - grid[0]
+    g = (np.sqrt(5) - 1) / 2
+    a_, b_ = max(lo, grid[k] - step), min(hi, grid[k] + step)
+    c, d = b_ - g * (b_ - a_), a_ + g * (b_ - a_)
+    fc, fd = enh(c)[0], enh(d)[0]
+    for _ in range(iters):
+        if fc > fd:
+            b_, d, fd = d, c, fc
+            c = b_ - g * (b_ - a_)
+            fc = enh(c)[0]
+        else:
+            a_, c, fc = c, d, fd
+            d = a_ + g * (b_ - a_)
+            fd = enh(d)[0]
+    best = 0.5 * (a_ + b_)
+    e1, t = enh(best)
+    if e1 < 0 or e1 < e0 - 1e-9:
+        for L, t0 in baseA + baseB:
+            L.thickness = t0
+        raise ValueError("Could not center the wells with these layers (the lower marked layer cannot restore the "
+                         "resonance over the needed range).")
+    return {"enhancement_before": e0, "enhancement_after": e1, "at_limit": bool(lo == 0.02 and best < 0.02 + 0.6 * step), "resonance": t["resonance"], "target": target,
+            "above": [{"name": L.name, "old": t0, "new": L.thickness, "unit": L.thickness_unit} for L, t0 in baseA],
+            "below": [{"name": L.name, "old": t0, "new": L.thickness, "unit": L.thickness_unit} for L, t0 in baseB]}

@@ -93,6 +93,10 @@ the transfer-matrix values include the grading. Old Vertical files get the expli
 <h3>Cavity tuning (Vertical's Marks / Force Wave)</h3>
 <p>Tick <i>Marked</i> on the layers that may change (for example the two cavity spacers), then press <b>Tune cavity</b>. All marked thicknesses are scaled by a
 common factor until the cold-cavity resonance falls exactly on the design wavelength. With no marked layers, the cavity spacers between the mirrors are used.</p>
+<h3>Center wells</h3>
+<p>Tune cavity fixes the resonance but not where the wells sit in the standing wave. After adding a layer on one side of the wells (e.g. an electron-blocking layer),
+mark one layer above the wells and one below them and press <b>Center wells</b>: the upper layer is scaled to slide the wells onto a standing-wave peak (maximum Γ<sub>enh</sub>),
+and the lower layer is re-tuned after every step so the cavity stays resonant at λ<sub>design</sub>.</p>
 
 <h3>Materials tab</h3>
 <p>Plots n and k of any material versus wavelength, with the band gap marked, and gives n, k (and α = 4πk/λ) at one wavelength typed in the <i>n, k at λ</i> box.

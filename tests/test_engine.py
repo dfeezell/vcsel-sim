@@ -314,3 +314,12 @@ def test_sweep_retune_holds_wavelength():
     assert r["ok"] and abs(r["point"]["wavelength"] - 980) < 1e-3 and r["point"]["retune_scale"] < 1
     o["tune_paths"] = [[1]]
     assert not json.loads(api.sweep_point(json.dumps(s.to_dict()), json.dumps(o)))["ok"]
+
+
+def test_center_wells_recovers_enhancement_after_one_sided_layer():
+    from vcsel_sim.retarget import center_wells
+    s = templates.gaas_980()
+    s.stack.insert(2, Layer(name="EBL", material="AlGaAs", x=0.9, thickness=20, thickness_unit="nm"))
+    rep = center_wells(s)
+    assert abs(rep["resonance"] - 980) < 1e-3
+    assert rep["enhancement_after"] > rep["enhancement_before"] and rep["enhancement_after"] > 1.86
