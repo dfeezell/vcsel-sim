@@ -33,8 +33,24 @@ function toast(msg, err = false, ms = 3200) {
   clearTimeout(toast._t); toast._t = setTimeout(() => (t.className = "toast"), ms);
 }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
-function download(name, text, type = "text/csv") {
-  const blob = new Blob([text], { type });
+// Save a file. Where the browser supports it (Chrome, Edge), a "Save as" dialog lets the user pick the folder
+// and the file name; elsewhere (Firefox, Safari) it is an ordinary download to the browser's download folder.
+async function download(name, text, type = "text/csv") {
+  const blob = text instanceof Blob ? text : new Blob([text], { type });
+  if (window.showSaveFilePicker && window.isSecureContext) {
+    const ext = (name.match(/(\.vcsel\.json|\.[^.]+)$/) || [""])[0];
+    const desc = { ".vcsel.json": "VCSEL design", ".json": "JSON", ".csv": "CSV data", ".vrt": "Vertical file", ".png": "PNG image", ".svg": "SVG image" }[ext] || "File";
+    try {
+      const h = await window.showSaveFilePicker({ suggestedName: name, id: "vcsel-sim",
+        types: ext ? [{ description: desc, accept: { [type || "application/octet-stream"]: [ext.endsWith(".json") ? ".json" : ext] } }] : undefined });
+      const w = await h.createWritable(); await w.write(blob); await w.close();
+      toast(`Saved ${h.name}`);
+      return;
+    } catch (e) {
+      if (e && e.name === "AbortError") return;            // the user cancelled the dialog
+      // any other problem (e.g. the dialog is not allowed here): fall back to a normal download
+    }
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
