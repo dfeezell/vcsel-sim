@@ -191,7 +191,7 @@ function swCurrentLine() {
 }
 function swXs() {
   const P = swParam(""); const a = parseFloat($("#sw-from").value), b = parseFloat($("#sw-to").value);
-  let n = Math.max(2, Math.min(401, parseInt($("#sw-n").value) || 21));
+  let n = Math.max(2, Math.min(401, parseInt($("#sw-n").value) || 21)); $("#sw-n").value = n;      // the box shows the count actually used
   if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error("Enter the sweep range");
   if (P.int) { const lo = Math.round(Math.min(a, b)), hi = Math.round(Math.max(a, b)); const step = Math.max(1, Math.round((hi - lo) / (n - 1)));
     const xs = []; for (let v = lo; v <= hi; v += step) xs.push(v); return xs; }

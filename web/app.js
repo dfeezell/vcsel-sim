@@ -30,7 +30,57 @@ function fmt(v, d = 4) {
 function toast(msg, err = false, ms = 3200) {
   const t = $("#toast");
   t.textContent = msg; t.className = "toast show" + (err ? " err" : "");
+  // errors stay long enough to read (about 1 s per 12 words, at least 10 s); a click dismisses any message
+  if (err) ms = Math.max(ms, 10000, String(msg).split(/\s+/).length * 330);
+  t.title = "Click to dismiss";
   clearTimeout(toast._t); toast._t = setTimeout(() => (t.className = "toast"), ms);
+}
+document.addEventListener("click", (e) => { if (e.target.id === "toast") { e.target.className = "toast"; clearTimeout(toast._t); } });
+
+/* Busy indicator. The engine runs synchronously on the page's thread, so the page cannot repaint during a
+ * calculation: show the indicator first, let the browser paint it, then run the work. */
+const BUSY = { n: 0 };
+function busyShow(msg) {
+  BUSY.n++; const b = $("#busy"); if (b) { b.querySelector(".busy-msg").textContent = msg || "Computing…"; b.classList.add("show"); }
+  document.body.classList.add("is-busy");
+}
+function busyHide() {
+  BUSY.n = Math.max(0, BUSY.n - 1);
+  if (!BUSY.n) { $("#busy")?.classList.remove("show"); document.body.classList.remove("is-busy"); }
+}
+function withBusy(fn, msg) {
+  busyShow(msg);
+  return new Promise((resolve) => {
+    let done = false;
+    const go = () => { if (done) return; done = true; try { resolve(fn()); } catch (e) { toast(e.message, true); resolve(); } finally { busyHide(); } };
+    requestAnimationFrame(() => setTimeout(go, 0));   // after the next paint
+    setTimeout(go, 80);                               // hidden tabs get no animation frames
+  });
+}
+const busy = (fn, msg) => (...a) => withBusy(() => fn(...a), msg);
+// validated wavelength range from two boxes: both positive, swapped (with a note) when entered the wrong way round
+function readRange(selLo, selHi, lam0) {
+  let lo = readNum(selLo, { min: 1, minEx: false, max: 1e5, label: "Range start", unit: "nm", def: Math.round(lam0 * 0.85) });
+  let hi = readNum(selHi, { min: 1, minEx: false, max: 1e5, label: "Range end", unit: "nm", def: Math.round(lam0 * 1.15) });
+  if (lo > hi) { [lo, hi] = [hi, lo]; $(selLo).value = lo; $(selHi).value = hi; $(selLo).dataset.good = lo; $(selHi).dataset.good = hi; toast("The range was entered high to low; swapped it.", false, 4000); }
+  if (lo === hi) { hi = lo + 1; $(selHi).value = hi; $(selHi).dataset.good = hi; }
+  return [lo, hi];
+}
+
+/* Validated number from an input box. Invalid entries (blank, not a number, out of range, not whole when `int`)
+ * give a message and put the last accepted value back in the box, so the box always shows the value in use. */
+function readNum(el, { min = -Infinity, max = Infinity, minEx = false, int = false, label = "Value", def = null, unit = "" } = {}) {
+  el = typeof el === "string" ? $(el) : el;
+  const raw = String(el.value ?? "").trim(); const v = raw === "" ? NaN : Number(raw);
+  const lowOk = minEx ? v > min : v >= min;
+  if (Number.isFinite(v) && lowOk && v <= max && (!int || Number.isInteger(v))) { el.dataset.good = raw; return v; }
+  const u = unit ? " " + unit : "";
+  const rng = Number.isFinite(min) && Number.isFinite(max) ? (minEx ? `above ${min}${u} and at most ${max}${u}` : `from ${min}${u} to ${max}${u}`)
+    : Number.isFinite(min) ? `${minEx ? "above" : "at least"} ${min}${u}` : Number.isFinite(max) ? `at most ${max}${u}` : "";
+  const back = el.dataset.good ?? (def != null ? String(def) : "");
+  toast(`${label}: “${raw || "blank"}” is not valid. Enter ${int ? "a whole number" : "a number"}${rng ? " " + rng : ""}.${back !== "" ? ` Kept ${back}${u}.` : ""}`, true);
+  el.value = back;
+  return back === "" ? null : Number(back);
 }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 // Save a file. Where the browser supports it (Chrome, Edge), a "Save as" dialog lets the user pick the folder
@@ -61,7 +111,7 @@ const slug = () => (S.design?.name || "vcsel").replace(/[^\w.-]+/g, "_");
 function call(fn, ...args) {
   const out = S.api[fn](...args);
   const r = JSON.parse(out);
-  if (!r.ok) throw new Error(r.error);
+  if (!r.ok) throw new Error(String(r.error).replace(/^ValueError: /, ""));   // plain message for input problems
   return r;
 }
 async function boot() {
@@ -87,6 +137,7 @@ async function boot() {
     try { const saved = localStorage.getItem("vcsel-design"); if (saved) { setDesign(JSON.parse(saved), false); start = null; } } catch (e) { /* ignore */ }
     if (start) loadTemplate(start);
     $("#loading").classList.add("hidden");
+    if (!start) withBusy(runAll, "Analyzing the saved design…");   // a restored design is shown with its results
   } catch (e) {
     console.error(e);
     msg.innerHTML = `Could not start the Python engine.<br><small>${esc(e.message)}</small>`;
@@ -194,7 +245,7 @@ function changed(rerun = true) {
   renderStack(); renderProps(); persist();
   if (rerun) autoRun();
 }
-const autoRun = debounce(() => runAll(), 250);
+const autoRun = debounce(() => withBusy(runAll), 250);
 
 function hasActive(items = S.design.stack) {
   return items.some((it) => (it.kind === "group" ? hasActive(it.children) : it.layer_type === "active"));
@@ -202,8 +253,8 @@ function hasActive(items = S.design.stack) {
 function runAll() {
   const tab = $(".tabs button.active").dataset.tab;
   runAnalysis(false);
-  if (tab === "refl") runRefl();
-  if (tab === "dbr" && !S.dbr) runDbr();
+  if (tab === "refl" && !S.refl) withBusy(() => runRefl(), "Computing spectra…");
+  if (tab === "dbr" && !S.dbr) withBusy(() => runDbr(), "Designing the DBR…");
   if (tab === "layers") renderLayerTable();
   if (tab === "sweep") swRefresh();
 }
@@ -508,8 +559,21 @@ $("#props").addEventListener("change", (e) => {
     it.grading = Object.assign({}, GRADE_DEF, it.grading || {}, { [k]: v });
     changed(); renderProps(); return;
   }
+  // numeric fields: refuse blank, non-numeric and out-of-range entries (the panel is redrawn with the old value)
+  if (e.target.type === "number" || e.target.dataset.num) {
+    const LIM = { thickness: [0, 1e6, "Thickness"], x: [+(e.target.min || 0), +(e.target.max || 1), "Composition x"], y: [0, 1, "Composition y"],
+      n_real: [1e-6, 50, "Refractive index n"], n_imag: [-50, 50, "Extinction k"], absorption: [-1e7, 1e7, "Absorption α"],
+      doping: [0, 1e22, "Doping"], repeats: [0, 2000, "Repeats"], g_thickness_nm: [0, 200, "Grading thickness"], g_steps: [1, 100, "Grading steps"] }[f];
+    const raw = String(e.target.value).trim(); const n = Number(raw);
+    const whole = f === "repeats" || f === "g_steps";
+    if (LIM && (raw === "" || !Number.isFinite(n) || n < LIM[0] || n > LIM[1] || (whole && !Number.isInteger(n)))) {
+      const why = f === "doping" && n < 0 ? " Doping is a concentration; choose n- or p-type with the Type selector." : "";
+      toast(`${LIM[2]}: “${raw || "blank"}” is not valid. Enter ${whole ? "a whole number" : "a number"} from ${LIM[0]} to ${LIM[1]}.${why} Kept the previous value.`, true);
+      renderProps(); return;
+    }
+  }
   let v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
-  if (e.target.dataset.num) v = Math.abs(parseFloat(v)) || 0;
+  if (e.target.dataset.num) v = parseFloat(v);
   if (f === "doping" && v > 0 && it.absorption_mode !== "doping" && (it.layer_type === "n-type" || it.layer_type === "p-type")) {
     const ni = nodeValue(S.sel);                                  // fill α from the literature model when one exists
     if (ni?.fca?.family) { it.absorption_mode = "doping"; toast("Absorption α now follows the doping (literature model). Choose “Manual” to type your own α."); }
@@ -548,8 +612,19 @@ $("#props").addEventListener("click", (e) => {
   it[f] = v; changed();
 });
 $("#design-name").addEventListener("input", () => { S.design.name = $("#design-name").textContent.trim(); persist(); });
-$("#design-temp").addEventListener("change", (e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) S.design.temperature = v; changed(); });
-$("#design-lambda").addEventListener("change", (e) => { S.design.design_wavelength = parseFloat(e.target.value) || S.design.design_wavelength; changed(); });
+$("#design-temp").addEventListener("change", (e) => {
+  e.target.dataset.good = String(S.design.temperature);
+  const v = readNum(e.target, { min: -273.15, minEx: true, max: 1000, label: "Temperature", unit: "°C" });
+  if (v === S.design.temperature) return;
+  S.design.temperature = v; changed();
+  if (v < -73 || v > 227) toast(`T = ${v} °C is outside 200–500 K, where the temperature-dependent index models are fitted; results there are extrapolated.`, true);
+});
+$("#design-lambda").addEventListener("change", (e) => {
+  e.target.dataset.good = String(S.design.design_wavelength);
+  const v = readNum(e.target, { min: 100, max: 20000, label: "Design wavelength", unit: "nm" });
+  if (v === S.design.design_wavelength) return;
+  S.design.design_wavelength = v; changed();
+});
 
 /* ------------------------------------------------------------------ field plot */
 // remember each plot's axis ranges after every full redraw, for the Reset button
@@ -734,8 +809,8 @@ function renderKpis() {
     kpi("Peak |E|² / |E|² at active", `${fmt(r.peak_E2, 5)} / ${fmt(r.E2_active_max, 5)}`)].join("");
 }
 ["#f-show", "#f-origin", "#f-units", "#f-shade"].forEach((s) => $(s).addEventListener("change", plotField));
-$("#f-norm").addEventListener("change", () => runAnalysis());
-$("#eta-i").addEventListener("change", () => runAnalysis());
+$("#f-norm").addEventListener("change", busy(() => runAnalysis()));
+$("#eta-i").addEventListener("change", busy(() => { readNum("#eta-i", { min: 0, minEx: true, max: 1, label: "Internal efficiency ηᵢ", def: 1 }); runAnalysis(); }));
 
 /* ------------------------------------------------------------------ reflectance */
 const PART_LABEL = { top_dbr: "Top DBR (from cavity)", bottom_dbr: "Bottom DBR (from cavity)", full_top: "Whole wafer, from top", full_bottom: "Whole wafer, from substrate" };
@@ -744,7 +819,10 @@ function runRefl() {
   if (!S.design) return;
   const parts = $$(".r-part:checked").map((c) => c.value);
   if (!parts.length) { toast("Pick at least one spectrum."); return; }
-  const opts = { lambda_min: +$("#r-min").value, lambda_max: +$("#r-max").value, points: +$("#r-pts").value, parts, threshold: stopThr("#r-thr") };
+  const lam0 = S.design.design_wavelength;
+  const [lo, hi] = readRange("#r-min", "#r-max", lam0);
+  const pts = readNum("#r-pts", { min: 51, max: 20001, int: true, label: "Points", def: 2001 });
+  const opts = { lambda_min: lo, lambda_max: hi, points: pts, parts, threshold: stopThr("#r-thr") };
   try { S.refl = call("reflectance", designJSON(), JSON.stringify(opts)); } catch (e) { toast(e.message, true); return; }
   plotRefl();
 }
@@ -788,16 +866,17 @@ function plotRefl() {
     <p class="note">The top of a DBR stopband is very flat, so λ at R<sub>max</sub> can sit several nm from the design wavelength when the two mirror materials absorb differently (the standing wave moves from the low-index layers on the short-wavelength side to the high-index layers on the long side). The stopband center is the better measure of where the mirror is centered.</p>
     ${notes.map((e) => `<p class="note">${esc(e)}</p>`).join("")}${errs.map((e) => `<p class="note" style="color:var(--warn)">${esc(e)}</p>`).join("")}`;
 }
-$("#btn-refl").addEventListener("click", runRefl);
+$("#btn-refl").addEventListener("click", busy(() => runRefl(), "Computing spectra…"));
+["#r-min", "#r-max", "#r-pts"].forEach((sel) => $(sel).addEventListener("change", busy(() => runRefl(), "Computing spectra…")));
 $("#r-mode").addEventListener("change", plotRefl);
-$("#r-thr").addEventListener("change", runRefl);
+$("#r-thr").addEventListener("change", busy(() => { readNum("#r-thr", { min: 0, minEx: true, max: 0.999999, label: "Stopband threshold", def: 0.99 }); runRefl(); }, "Computing spectra…"));
 $("#tab-refl .legend-tog").addEventListener("change", plotRefl);
 function stopThr(sel) { const v = parseFloat($(sel).value); return Number.isFinite(v) && v > 0 && v < 1 ? v : 0.99; }
 function stopCells(st) {
   if (st.edge_short == null) return `<td class="n" colspan="3">R stays below ${st.threshold}</td>`;
   return `<td class="n">${fmt(st.edge_short, 5)} – ${fmt(st.edge_long, 5)}</td><td class="n">${fmt(st.width_nm, 4)}</td><td class="n">${fmt(st.center, 5)}</td>`;
 }
-$$(".r-part").forEach((c) => c.addEventListener("change", runRefl));
+$$(".r-part").forEach((c) => c.addEventListener("change", busy(() => runRefl(), "Computing spectra…")));
 
 /* ------------------------------------------------------------------ results table */
 const RES = [
@@ -894,9 +973,10 @@ function renderResults() {
 }
 $("#res-vertical").addEventListener("change", renderResults);
 $("#results").addEventListener("click", (e) => { if (e.target.closest(".course-toggle")) { S.showCourse = !S.showCourse; renderResults(); } });
-$("#rt-model").addEventListener("change", () => { runAnalysis(false); persistOpts(); });
-$("#gamma-model").addEventListener("change", () => { runAnalysis(false); persistOpts(); });
-["#f-sp-p", "#f-sp-a"].forEach((sel) => $(sel).addEventListener("change", () => { runAnalysis(false); persistOpts(); }));
+$("#rt-model").addEventListener("change", busy(() => { runAnalysis(false); persistOpts(); }));
+$("#gamma-model").addEventListener("change", busy(() => { runAnalysis(false); persistOpts(); }));
+$("#f-sp-p").addEventListener("change", busy(() => { readNum("#f-sp-p", { min: 0.01, max: 1000, label: "Passive sampling", unit: "nm", def: 1 }); runAnalysis(false); persistOpts(); }));
+$("#f-sp-a").addEventListener("change", busy(() => { readNum("#f-sp-a", { min: 0.001, max: 100, label: "Active sampling", unit: "nm", def: 0.02 }); runAnalysis(false); persistOpts(); }));
 function persistOpts() { try { localStorage.setItem("vcsel-sim-opts-v2", JSON.stringify({ rt: $("#rt-model").value, gm: $("#gamma-model").value, sp: $("#f-sp-p").value, sa: $("#f-sp-a").value })); } catch (_) { /* */ } }
 (function restoreOpts() { try { const o = JSON.parse(localStorage.getItem("vcsel-sim-opts-v2") || "null"); if (o) { $("#rt-model").value = o.rt || "exact"; $("#gamma-model").value = o.gm || "dispersive"; $("#f-sp-p").value = o.sp || 1; $("#f-sp-a").value = o.sa || 0.02; } } catch (_) { /* */ } })();
 
@@ -956,12 +1036,12 @@ function initDbrTab() {
     const k = w.dataset.k, d = DBR_DEFAULT[k];
     w.querySelector(".dbr-mat").innerHTML = matOptions(d.material);
     w.querySelector(".dbr-x").value = d.x;
-    w.querySelector(".dbr-mat").addEventListener("change", () => { dbrSyncX(w); runDbr(); });
-    w.querySelector(".dbr-x").addEventListener("change", runDbr);
-    w.querySelector(".dbr-y").addEventListener("change", runDbr);
+    w.querySelector(".dbr-mat").addEventListener("change", busy(() => { dbrSyncX(w); runDbr(); }));
+    w.querySelector(".dbr-x").addEventListener("change", busy(() => runDbr()));
+    w.querySelector(".dbr-y").addEventListener("change", busy(() => runDbr()));
     dbrSyncX(w);
   });
-  ["#dbr-lam", "#dbr-pairs", "#dbr-min", "#dbr-max", "#dbr-thr", "#dbr-grade", "#dbr-grade-t"].forEach((sel) => $(sel).addEventListener("change", runDbr));
+  ["#dbr-lam", "#dbr-pairs", "#dbr-min", "#dbr-max", "#dbr-thr", "#dbr-grade", "#dbr-grade-t"].forEach((sel) => $(sel).addEventListener("change", busy(() => runDbr(), "Designing the DBR…")));
   $("#dbr-pairs-mode").addEventListener("change", plotDbr);
   $("#dbr-role").addEventListener("change", () => { dbrRoleLabels(); renderDbrStructure(); });
   dbrRoleLabels();
@@ -972,7 +1052,7 @@ function initDbrTab() {
     for (const c of [".dbr-mat", ".dbr-x", ".dbr-y"]) {
       const va = a.querySelector(c).value; a.querySelector(c).value = b.querySelector(c).value; b.querySelector(c).value = va;
     }
-    dbrSyncX(a); dbrSyncX(b); runDbr();
+    dbrSyncX(a); dbrSyncX(b); withBusy(() => runDbr());
   });
   $("#btn-dbr-insert").addEventListener("click", () => {
     if (!S.dbr) runDbr();
@@ -1036,12 +1116,17 @@ function dbrSpec(k) {
   const lbl = matFormula(mat, v, yv) || (m && m.label) || mat;
   return { material: mat, x: v, y: yv, name: lbl };
 }
+const DBR_MAX_PAIRS = 500;
 function runDbr() {
-  if (!$("#dbr-lam").value) $("#dbr-lam").value = S.design.design_wavelength;
-  const lam = +$("#dbr-lam").value;
-  if (!$("#dbr-min").value || !$("#dbr-max").value) { $("#dbr-min").value = Math.round(lam * 0.8); $("#dbr-max").value = Math.round(lam * 1.2); }
-  const o = { lambda0: lam, pairs: +$("#dbr-pairs").value, first: dbrSpec("first"), second: dbrSpec("second"), incident: dbrSpec("incident"), exit: dbrSpec("exit"),
-    lambda_min: +$("#dbr-min").value, lambda_max: +$("#dbr-max").value, points: 2001, temperature: S.design?.temperature ?? 23, threshold: stopThr("#dbr-thr") };
+  if (!$("#dbr-lam").value && !$("#dbr-lam").dataset.good) $("#dbr-lam").value = S.design.design_wavelength;
+  const lam = readNum("#dbr-lam", { min: 100, max: 20000, label: "DBR λ₀", unit: "nm", def: S.design.design_wavelength });
+  const pairs = readNum("#dbr-pairs", { min: 1, max: DBR_MAX_PAIRS, int: true, label: "Pairs", def: 20 });
+  if (!$("#dbr-min").value && !$("#dbr-min").dataset.good) $("#dbr-min").value = Math.round(lam * 0.8);
+  if (!$("#dbr-max").value && !$("#dbr-max").dataset.good) $("#dbr-max").value = Math.round(lam * 1.2);
+  const [lo, hi] = readRange("#dbr-min", "#dbr-max", lam);
+  readNum("#dbr-grade-t", { min: 0, max: 200, label: "Grading thickness", unit: "nm", def: 20 });
+  const o = { lambda0: lam, pairs, first: dbrSpec("first"), second: dbrSpec("second"), incident: dbrSpec("incident"), exit: dbrSpec("exit"),
+    lambda_min: lo, lambda_max: hi, points: 2001, temperature: S.design?.temperature ?? 23, threshold: stopThr("#dbr-thr") };
   $("#dbr-grade-t").disabled = $("#dbr-grade").value === "none";
   if ($("#dbr-grade").value !== "none") o.grading = { profile: $("#dbr-grade").value, thickness_nm: Math.max(0, +$("#dbr-grade-t").value || 0), steps: 10, keep_period: true };
   try { S.dbr = call("dbr_design", JSON.stringify(o)); } catch (e) { S.dbr = null; toast(e.message, true); return; }
@@ -1113,8 +1198,8 @@ $$("#tabs button").forEach((b) => b.addEventListener("click", () => {
   $$("#tabs button").forEach((x) => x.classList.toggle("active", x === b));
   $$(".tab").forEach((t) => t.classList.toggle("active", t.id === "tab-" + b.dataset.tab));
   const tab = b.dataset.tab;
-  if (tab === "refl") runRefl();
-  if (tab === "dbr" && !S.dbr) runDbr();
+  if (tab === "refl" && !S.refl) withBusy(() => runRefl(), "Computing spectra…");
+  if (tab === "dbr" && !S.dbr) withBusy(() => runDbr(), "Designing the DBR…");
   if (tab === "layers") renderLayerTable();
   if (tab === "sweep") swRefresh();
   if (tab === "about") $("#about").innerHTML = window.ABOUT_HTML || "";
@@ -1150,7 +1235,7 @@ $("#file-input").addEventListener("change", async (e) => {
       const buf = new Uint8Array(await f.arrayBuffer());
       const pyb = S.py.toPy(Array.from(buf));
       const r = JSON.parse(S.api.import_vrt_bytes(pyb, f.name)); pyb.destroy();
-      if (!r.ok) throw new Error(r.error);
+      if (!r.ok) throw new Error(String(r.error).replace(/^ValueError: /, ""));   // plain message for input problems
       setDesign(r.design);
       const tp = r.design.top; const fake = /air/i.test(tp.name) && tp.material !== "Air";
       toast(fake ? `Imported ${f.name}. Note: Vertical stored its top "${tp.name}" as n = ${fmt(tp.n_real, 4)} − ${fmt(tp.n_imag, 4)}i, not real air (kept so results match Vertical; set the exit medium to Air for physical results).`
@@ -1194,9 +1279,9 @@ $$("[data-export]").forEach((b) => b.addEventListener("click", () => {
   const w = el.clientWidth, h = el.clientHeight;
   Plotly.downloadImage(el, { format: fmtx, width: w, height: h, scale: fmtx === "png" ? 4 : 1, filename: `${slug()}_${b.dataset.export.replace("plot-", "")}` });
 }));
-$("#btn-run").addEventListener("click", () => { runAnalysis(true); renderStack(); });
-document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); runAnalysis(true); } });
-$("#btn-tune").addEventListener("click", () => {
+$("#btn-run").addEventListener("click", busy(() => { runAnalysis(true); renderStack(); }));
+document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); withBusy(() => runAnalysis(true)); } });
+$("#btn-tune").addEventListener("click", busy(() => {
   try {
     const r = call("tune_cavity", designJSON(), S.design.design_wavelength);
     const rep = r.report;
@@ -1207,10 +1292,9 @@ $("#btn-tune").addEventListener("click", () => {
     if (rep.converged) toast(`Tuned ${rep.layers.length} ${rep.chosen || "marked layer(s)"} by ×${rep.scale.toFixed(5)}: cavity resonance ${rep.resonance.toFixed(4)} nm`, false, 5000);
     else toast(`Tune cavity failed: no thickness of the ${rep.chosen || "marked layer(s)"} between 2% and 10× of the present value puts the resonance at ${fmt(S.design.design_wavelength, 6)} nm (closest ${rep.resonance.toFixed(2)} nm). The design is unchanged. Mark a thicker layer, or a layer on the other side of the wells.`, true, 9000);
   } catch (e) { toast(e.message, true, 6000); }
-});
+}, "Tuning the cavity…"));
 $("#btn-center").addEventListener("click", () => {
-  toast("Centering the wells on the standing wave…", false, 20000);
-  setTimeout(() => {
+  withBusy(() => {
     try {
       const r = call("center_wells", designJSON(), S.design.design_wavelength);
       const rep = r.report;
@@ -1221,7 +1305,7 @@ $("#btn-center").addEventListener("click", () => {
       toast(`Wells centered: Γenh ${fmt(rep.enhancement_before, 4)} → ${fmt(rep.enhancement_after, 4)}, resonance ${fmt(rep.resonance, 7)} nm. ${[...rep.above, ...rep.below].map(ch).join("; ")}.` +
         (rep.at_limit ? " The upper layer reached its minimum thickness: mark a thicker layer above the wells to center them fully." : "") + " Undo reverts it.", !!rep.at_limit, 10000);
     } catch (e) { toast(e.message, true, 9000); }
-  }, 30);
+  }, "Centering the wells…");
 });
 
 boot();

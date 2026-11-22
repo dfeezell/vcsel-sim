@@ -39,6 +39,12 @@ button, input, select { font: inherit; color: inherit; }
 .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .lam { display: flex; align-items: center; gap: 6px; color: var(--ink-2); }
 .lam input { width: 80px; }
+/* narrower windows: compact the top bar so the Analyze button stays on the first row */
+@media (max-width: 1440px) {
+  .topbar { gap: 10px; padding: 6px 12px; } .toolbar { gap: 6px; } .subtitle { display: none; }
+  .toolbar .lng { display: none; } .toolbar .btn { padding-left: 9px; padding-right: 9px; } .lam input { width: 66px; }
+}
+@media (max-width: 1100px) { .brand .title { font-size: 13px; } .logo { width: 24px; height: 24px; } }
 input[type=number], input[type=text], select {
   border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; background: #fff; min-width: 0;
 }
@@ -261,7 +267,7 @@ table.res-table td.cx { font-size: 11.5px; }
 .spinner { width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--ink); color: #fff; padding: 9px 16px; border-radius: 7px; opacity: 0; transition: all .25s; pointer-events: none; z-index: 60; max-width: 80vw; }
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; cursor: pointer; }
 .toast.err { background: var(--warn); }
 
 @media (max-width: 1000px) {
@@ -321,3 +327,15 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; color:
 .rt-chk li.warn { background: #fff4e0; color: #8a4b00; }
 .rt-chk li.info { background: #eef4fb; color: #1f4f8a; }
 .rt-chk li.ok { background: #e9f7ee; color: #1e6b3a; }
+
+/* busy indicator (shown while the engine computes) */
+.busy { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 70; display: none; align-items: center; gap: 8px;
+  background: #fff; border: 1px solid #ced4da; border-radius: 18px; padding: 6px 14px 6px 10px; box-shadow: 0 2px 10px rgba(0,0,0,.12); font-size: 13px; color: var(--ink); }
+.busy.show { display: flex; }
+.busy .spin { width: 14px; height: 14px; border: 2px solid #c5d4ea; border-top-color: #1f5fae; border-radius: 50%; animation: busyspin .8s linear infinite; }
+@keyframes busyspin { to { transform: rotate(360deg); } }
+body.is-busy, body.is-busy * { cursor: progress !important; }
+.plot.stale { opacity: .45; transition: opacity .15s; }
+.stale-note { color: var(--warn); font-size: 12.5px; margin-left: 6px; }
+.table-scroll { overflow-x: auto; max-width: 100%; }
+@media (max-width: 1100px) { .tabs button { padding: 7px 6px; font-size: 13px; } }

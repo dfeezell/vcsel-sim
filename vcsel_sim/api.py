@@ -10,7 +10,7 @@ import math
 
 import numpy as np
 
-from . import materials, laser, vrt, export, templates, cavity, fca, retarget as _rt
+from . import materials, laser, tmm, vrt, export, templates, cavity, fca, retarget as _rt
 from .structure import Structure
 
 
@@ -45,8 +45,14 @@ def check_design(s, lam=None):
     """Input checks. Returns a list of warnings; raises ValueError for inputs that have no physical meaning.
     Errors: negative thickness or repeat count, a material model that is undefined at the wavelength.
     Warnings: a composition outside the material's fitted range, a wavelength outside the model's range."""
+    if not (np.isfinite(s.design_wavelength) and s.design_wavelength > 0):
+        raise ValueError(f"The design wavelength must be a positive number of nm (got {s.design_wavelength:g}).")
+    if not s.temperature > -273.15:
+        raise ValueError(f"The temperature must be above absolute zero, -273.15 °C (got {s.temperature:g} °C).")
     lam = float(lam or s.design_wavelength)
     warns, seen = [], set()
+    if not 100 <= s.design_wavelength <= 20000:
+        warns.append(f"The design wavelength {s.design_wavelength:g} nm is outside 100-20000 nm, beyond every material model.")
 
     def layer_check(L, where):
         if (L.thickness or 0) < 0:
@@ -225,6 +231,13 @@ def reflectance(design_json, options_json="{}"):
         lo = float(o.get("lambda_min", lam0 - span / 2))
         hi = float(o.get("lambda_max", lam0 + span / 2))
         parts = o.get("parts", ["full_top"])
+        npts = o.get("points", 2001)
+        if not (np.isfinite(lo) and np.isfinite(hi) and lo > 0 and hi > 0):
+            raise ValueError(f"The wavelength range must be positive (got {lo:g} to {hi:g} nm).")
+        if not (isinstance(npts, (int, float)) and float(npts).is_integer() and 2 <= npts <= 200001):
+            raise ValueError(f"Points must be a whole number from 2 to 200001 (got {npts}).")
+        if lo > hi:
+            lo, hi = hi, lo
         out = {}
         # every spectrum on one common grid (the union of each part's refined grid), so CSV columns line up
         grids = []
@@ -405,6 +418,27 @@ def _layer_spec(d, name, thickness=None, unit="waves"):
     return L
 
 
+def _r_vs_pairs(build, M, lam0):
+    """R at lam0 of the 1..M-pair mirror in one pass: identical periods give the characteristic matrix P^k, so
+    the field at the top follows from the substrate by applying P^-1 once per added pair (same convention as
+    laser.reflectance_spectrum 'full_top': incident medium taken as lossless)."""
+    s1 = build(1)
+    model = laser.Model(s1)
+    lam = np.array([float(lam0)])
+    ns = model.indices(lam, 0.0)
+    n0 = np.real(ns[0]) + 0j
+    m11, m12, m21, m22 = (complex(x[0]) for x in tmm.characteristic_matrix(ns, list(model.d), lam))
+    det = m11 * m22 - m12 * m21
+    i11, i12, i21, i22 = m22 / det, -m12 / det, -m21 / det, m11 / det          # P^-1: bottom -> top of one pair
+    E, H = 1.0 + 0j, complex(ns[-1][0])                                        # outgoing wave in the exit medium
+    out = []
+    for _ in range(M):
+        E, H = i11 * E + i12 * H, i21 * E + i22 * H
+        A0, B0 = 0.5 * (E + H / n0[0]), 0.5 * (E - H / n0[0])
+        out.append(float(abs(B0 / A0) ** 2))
+    return out
+
+
 def dbr_design(options_json):
     """Stand-alone quarter-wave DBR designer.
 
@@ -419,7 +453,15 @@ def dbr_design(options_json):
         o = json.loads(options_json) if isinstance(options_json, str) else options_json
         lam0 = float(o.get("lambda0", 980))
         materials.set_temperature(o.get("temperature", 23.0))
-        m = max(int(o.get("pairs", 20)), 1)
+        try:
+            pf = float(o.get("pairs", 20))
+        except (TypeError, ValueError):
+            raise ValueError("Pairs must be a whole number.")
+        if pf != int(pf):
+            raise ValueError(f"Pairs must be a whole number (got {pf:g}).")
+        m = int(pf)
+        if not 1 <= m <= 1000:
+            raise ValueError(f"Pairs must be between 1 and 1000 (got {m}).")
         A = _layer_spec(o["first"], "first", o.get("first_waves", 0.25))
         B = _layer_spec(o["second"], "second", o.get("second_waves", 0.25))
         inc = _layer_spec(o.get("incident", {"material": "Air"}), "incident")
@@ -436,7 +478,8 @@ def dbr_design(options_json):
         s = build(m)
         lo = float(o.get("lambda_min", lam0 * 0.8))
         hi = float(o.get("lambda_max", lam0 * 1.2))
-        spec = laser.reflectance_spectrum(s, lo, hi, int(o.get("points", 2001)), "full_top")
+        # a bare mirror has no narrow features, so the uniform grid needs no refinement
+        spec = laser.reflectance_spectrum(s, lo, hi, int(o.get("points", 2001)), "full_top", refine=False)
         st = laser.stopband(spec, float(o.get("threshold", 0.99)), lam0)
         at = laser.reflectance_spectrum(s, lam0, lam0, 1, "full_top")
         nB = float(np.real(np.atleast_1d(B.index(lam0))[0]))
@@ -458,10 +501,9 @@ def dbr_design(options_json):
         dl_stop = 4 * lam0 / math.pi * math.asin((nH - nL) / (nH + nL)) if nH > nL else 0.0
         pen = coldren_leff(nL, nH, m, dA + dB) if nH > nL else {}
         # R at lambda0 versus number of pairs
-        M = int(o.get("max_pairs", max(2 * m, 40)))
-        Rm = []
-        for k in range(1, M + 1):
-            Rm.append(float(laser.reflectance_spectrum(build(k), lam0, lam0, 1, "full_top")["R"][0]))
+        M = min(int(o.get("max_pairs", max(2 * m, 40))), 2000)
+        Rm = _r_vs_pairs(build, M, lam0) if not grading else [
+            float(laser.reflectance_spectrum(build(k), lam0, lam0, 1, "full_top")["R"][0]) for k in range(1, M + 1)]
         need = {}
         for t in o.get("targets", [0.99, 0.995, 0.999, 0.9995, 0.9999]):
             k = next((i + 1 for i, r in enumerate(Rm) if r >= t), None)

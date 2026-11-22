@@ -145,7 +145,11 @@ function bindDiagram(root, handlers) {
   if (!handlers.editable) return;
   root.addEventListener("change", (e) => {
     if (!e.target.dataset.rep) return;
-    const g = getAt(parsePath(e.target.dataset.rep)); g.repeats = Math.max(0, parseInt(e.target.value) || 0); changed();
+    const g = getAt(parsePath(e.target.dataset.rep));
+    e.target.dataset.good = String(g.repeats);
+    const v = readNum(e.target, { min: 0, max: 2000, int: true, label: "Repeats" });
+    if (v === g.repeats) return;
+    g.repeats = v; changed();
   });
   root.addEventListener("dragstart", (e) => {
     const el = e.target.closest("[draggable][data-path]"); if (!el) return;

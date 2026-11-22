@@ -681,6 +681,8 @@ def _refine_points(model, lam, R, part, lo, hi):
     extra = []
     step = (hi - lo) / max(len(lam) - 1, 1)
     try:
+        if not model.active.any():
+            raise ValueError("no cavity")          # a mirror alone has no resonance to look for
         lc = cold_cavity_mode(model, model.s.design_wavelength)
         w = abs(lc.imag)
         if np.isfinite(lc.real) and lo < lc.real < hi and 0 < w < 2 * step * len(lam):
