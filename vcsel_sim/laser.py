@@ -6,7 +6,9 @@ Physics summary (see docs/theory.md for the derivation)
 Threshold: the material gain g (cm^-1) of all active layers and the wavelength
 are adjusted until the structure supports a field with only OUTGOING waves in
 the exit medium and substrate (the transfer-matrix condition for an infinite
-transmission). This is solved with a 2D Newton iteration on (lambda, g).
+transmission). It is solved as a quasi-normal-mode problem: for a trial gain g the complex wavelength
+of the mode (zero of 1 - r_up r_down at the top of the first active layer) is found, and g is adjusted
+until Im(lambda) = 0 (see solve_threshold). Convention exp(-i w t): a decaying mode has Im(lambda) > 0.
 
 Energy budget at threshold (exact, no approximations): in each layer the
 time-averaged power absorbed (or generated) per unit length is alpha*n*|E|^2
@@ -178,7 +180,7 @@ def solve_threshold(model: Model, lam_guess=None, g_guess=None, tol=1e-12, maxit
     real (Im lambda = 0): the structure then supports only outgoing waves at a real wavelength.
 
     g is found by a secant / bisection search on Im lambda(g), which is close to linear in g. Each evaluation
-    is a 1D complex Newton on the incoming amplitude A0(lambda). This stays well conditioned however high the
+    is a 1D complex Newton on the round-trip mismatch 1 - r_up r_down (round_trip_mismatch). This stays well conditioned however high the
     mirror reflectance is (the earlier 2D Newton on A0(lambda, g) diverged once the mirror transmission fell
     below ~1e-6). Falls back to that 2D Newton if the mode cannot be followed."""
     if not model.active.any():

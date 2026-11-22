@@ -25,7 +25,7 @@ def _expint(c, d):
     c = np.asarray(c, dtype=complex)
     small = np.abs(c * d) < 1e-8
     safe = np.where(small, 1.0, c)
-    val = np.expm1(safe * d) / safe
+    val = np.expm1(np.where(small, 0.0, c * d)) / safe   # never evaluate exp of a discarded branch
     return np.where(small, d * (1 + c * d / 2), val)
 
 
