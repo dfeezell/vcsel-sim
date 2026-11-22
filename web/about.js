@@ -55,7 +55,10 @@ and mirror reflectances can be done two ways, chosen on the Results tab:</p>
 <p>The field sampling on the Field tab only sets how finely |E|² is plotted. Every integral (gain, loss, Γ<sub>enh</sub>, confinement) is done analytically,
 and the peak |E|² is refined inside its layer, so the results do not depend on the sampling. The Vertical column always uses Vertical's 0.1 nm rule.</p>
 <h3>DBR design tab</h3>
-<p>Designs a quarter-wave mirror on its own. Choose the incident medium, the two layers and the exit medium, and set the number of pairs.
+<p>Designs a quarter-wave mirror on its own. First choose the <b>Mirror</b> viewpoint: <i>Bottom DBR</i> (from the cavity, looking down), <i>Top DBR</i> (from the cavity, looking up),
+or a stand-alone mirror lit from above or from below. For the two DBR choices the incident medium is the cavity layer next to the mirror and the 1st layer is the one touching the cavity;
+the drawing shows the mirror as it will sit in the stack (a top DBR has the cavity side at the bottom), and Insert keeps the 1st layer next to the cavity.
+Then choose the two layers and the exit medium, and set the number of pairs.
 The tab shows the spectrum, R at λ<sub>0</sub> (transfer matrix and analytic), the stopband width, the penetration depth, R (or 1 − R) versus the number of pairs, and how many pairs reach a target reflectance.
 The <b>stopband</b> is the continuous band around λ<sub>0</sub> with R ≥ 99% (the usual VCSEL convention; the threshold can be changed). It is zero until the mirror reaches 99% and widens with more pairs toward the
 infinite-stack width (4λ<sub>0</sub>/π) arcsin[(n<sub>2</sub> − n<sub>1</sub>)/(n<sub>2</sub> + n<sub>1</sub>)], which is shown next to it.

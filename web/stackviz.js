@@ -392,19 +392,30 @@ function dbrDesign() {
   const D = S.dbr; if (!D) return null;
   const sp = (k) => { const s = dbrSpec(k); return newLayer({ name: s.name, material: s.material, x: s.x || 0, index_mode: s.index_mode || "model",
     n_real: s.n_real || 3.5, thickness: 0, thickness_unit: "nm", layer_type: "other" }); };
-  const g = JSON.parse(JSON.stringify(D.group)); g.role = $("#dbr-role").value;
+  const v = dbrView();
+  const g = JSON.parse(JSON.stringify(D.group)); g.role = v.role;
   g.name = { bottom_dbr: "N-DBR", top_dbr: "P-DBR", none: "DBR" }[g.role];
+  // light going up: the incident medium is below the mirror, so the drawing (top -> bottom) is exit, 2nd, 1st, ..., incident
+  if (v.up) g.children.reverse();
   return { name: `${$("#dbr-pairs").value}-pair DBR at ${$("#dbr-lam").value} nm`, design_wavelength: +$("#dbr-lam").value,
-    temperature: S.design?.temperature ?? 23, top: sp("incident"), substrate: sp("exit"), stack: [g], notes: "Made with the DBR design tab" };
+    temperature: S.design?.temperature ?? 23, top: sp(v.up ? "exit" : "incident"), substrate: sp(v.up ? "incident" : "exit"), stack: [g],
+    notes: "Made with the DBR design tab" };
 }
-const DBR_LABELS = ["incident medium", "exit medium"];
+function dbrView() {
+  const r = $("#dbr-role").value;
+  return { key: r, role: r.startsWith("none") ? "none" : r, up: r === "top_dbr" || r === "none_up", cavity: !r.startsWith("none") };
+}
+function dbrLabels() {
+  const v = dbrView(); const inc = v.cavity ? "incident medium (cavity side)" : "incident medium", ex = "exit medium";
+  return v.up ? [ex, inc] : [inc, ex];
+}
 function renderDbrStructure() {
   const host = $("#dbr-structure"); if (!host) return;
   const d = dbrDesign(); if (!d) { host.innerHTML = ""; return; }
   let info = null; try { info = call("node_info", JSON.stringify(d)); } catch (_) { /* */ }
-  host.innerHTML = `<div class="dg-title">Layer structure <span class="dg-hint">(incident medium on top)</span>
+  host.innerHTML = `<div class="dg-title">Layer structure <span class="dg-hint">(${dbrView().up ? "light enters from below" : "light enters from above"}, as it sits in the stack)</span>
       <button class="pb" data-dfig="png" title="Download a drawing of this mirror as PNG">PNG</button><button class="pb" data-dfig="svg" title="Download a drawing of this mirror as SVG">SVG</button></div>
-    <div class="dg-body small"><div class="dg-blocks">${diagramHTML(d, info, { editable: false, labels: DBR_LABELS })}</div><div class="dg-strip"></div></div>`;
+    <div class="dg-body small"><div class="dg-blocks">${diagramHTML(d, info, { editable: false, labels: dbrLabels() })}</div><div class="dg-strip"></div></div>`;
   const strip = $(".dg-strip", host); strip.innerHTML = stripSVG(d, info, "", Math.max($(".dg-blocks", host).scrollHeight - 4, 120));
 }
 function initDbrExtras() {
@@ -412,7 +423,7 @@ function initDbrExtras() {
     const b = e.target.closest("[data-dfig]"); if (!b) return;
     const d = dbrDesign(); if (!d) return;
     let info = null; try { info = call("node_info", JSON.stringify(d)); } catch (_) { /* */ }
-    exportStackFigure(d, info, b.dataset.dfig, `dbr_${$("#dbr-pairs").value}pairs`, DBR_LABELS);
+    exportStackFigure(d, info, b.dataset.dfig, `dbr_${$("#dbr-pairs").value}pairs`, dbrLabels());
   });
   $("#btn-dbr-layers").addEventListener("click", () => {
     const d = dbrDesign(); if (!d) return;

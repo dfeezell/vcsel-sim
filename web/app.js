@@ -960,6 +960,8 @@ function initDbrTab() {
   });
   ["#dbr-lam", "#dbr-pairs", "#dbr-min", "#dbr-max", "#dbr-thr", "#dbr-grade", "#dbr-grade-t"].forEach((sel) => $(sel).addEventListener("change", runDbr));
   $("#dbr-pairs-mode").addEventListener("change", plotDbr);
+  $("#dbr-role").addEventListener("change", () => { dbrRoleLabels(); renderDbrStructure(); });
+  dbrRoleLabels();
   $("#dbr-mode").addEventListener("change", plotDbr);
   $("#tab-dbr .legend-tog").addEventListener("change", plotDbr);
   $("#btn-dbr-swap").addEventListener("click", () => {
@@ -972,8 +974,7 @@ function initDbrTab() {
   $("#btn-dbr-insert").addEventListener("click", () => {
     if (!S.dbr) runDbr();
     if (!S.dbr) return;
-    const g = JSON.parse(JSON.stringify(S.dbr.group)); g.role = $("#dbr-role").value;
-    g.name = { bottom_dbr: "N-DBR", top_dbr: "P-DBR", none: "DBR" }[g.role];
+    const g = dbrDesign().stack[0];                         // oriented as drawn: the 1st layer touches the cavity
     let what = "Inserted";
     if (g.role === "none") stackAction("insert", g);
     else {
@@ -996,6 +997,13 @@ function initDbrTab() {
     t += `\npairs,R_at_lambda0\n` + D.R_vs_pairs.map((r, i) => `${i + 1},${r}`).join("\n") + "\n";
     download(`dbr_${$("#dbr-pairs").value}pairs.csv`, t);
   });
+}
+function dbrRoleLabels() {
+  const v = dbrView();
+  const lbl = (k, t, tip) => { const b = $(`.dbr-medium[data-k="${k}"] .dbr-lbl`); b.textContent = t; b.title = tip; };
+  lbl("incident", v.cavity ? "Cavity side" : "Incident", v.cavity ? "The cavity layer next to the mirror; light arrives from here" : "Medium the light arrives from");
+  lbl("first", "1st layer", v.cavity ? "The mirror layer that touches the cavity" : "The mirror layer that touches the incident medium");
+  lbl("exit", v.cavity ? (v.up ? "Exit (top)" : "Exit (substrate)") : "Exit", v.up ? "Medium above the mirror" : "Medium below the mirror");
 }
 function dbrSyncX(w) {
   const m = S.matByKey[w.querySelector(".dbr-mat").value]; const x = w.querySelector(".dbr-x");
