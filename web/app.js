@@ -31,11 +31,14 @@ function toast(msg, err = false, ms = 3200) {
   const t = $("#toast");
   t.textContent = msg; t.className = "toast show" + (err ? " err" : "");
   // errors stay long enough to read (about 1 s per 12 words, at least 10 s); a click dismisses any message
-  if (err) ms = Math.max(ms, 10000, String(msg).split(/\s+/).length * 330);
-  t.title = "Click to dismiss";
+  if (err) ms = Math.min(Math.max(ms, 6000, String(msg).split(/\s+/).length * 250), 12000);
+  t.title = "Click to dismiss"; toast._at = Date.now();
   clearTimeout(toast._t); toast._t = setTimeout(() => (t.className = "toast"), ms);
 }
-document.addEventListener("click", (e) => { if (e.target.id === "toast") { e.target.className = "toast"; clearTimeout(toast._t); } });
+// a click anywhere (or a key press) dismisses the message once it has been up for a moment
+function toastHide() { const t = $("#toast"); if (t && t.className.includes("show") && Date.now() - (toast._at || 0) > 600) { t.className = "toast"; clearTimeout(toast._t); } }
+document.addEventListener("pointerdown", toastHide, true);
+document.addEventListener("keydown", toastHide, true);
 
 /* Busy indicator. The engine runs synchronously on the page's thread, so the page cannot repaint during a
  * calculation: show the indicator first, let the browser paint it, then run the work. */
@@ -173,6 +176,7 @@ function parentList(path) {
 
 function setDesign(d, rerun = true) {
   S.design = d; tagIds(d.stack); S.collapsed.clear(); S.analysis = null; S.refl = null;
+  if (S.dbrAuto !== false && typeof dbrFromDesign === "function" && dbrFromDesign()) S.dbr = null;
   S.sel = d.stack.length ? ["stack", 0] : ["top"];
   $("#design-lambda").value = d.design_wavelength;
   if (d.temperature == null) d.temperature = 23;
@@ -1042,8 +1046,10 @@ function initDbrTab() {
     dbrSyncX(w);
   });
   ["#dbr-lam", "#dbr-pairs", "#dbr-min", "#dbr-max", "#dbr-thr", "#dbr-grade", "#dbr-grade-t"].forEach((sel) => $(sel).addEventListener("change", busy(() => runDbr(), "Designing the DBR…")));
+  $("#tab-dbr").addEventListener("change", (e) => { if (e.isTrusted && e.target.closest(".dbr-medium, #dbr-lam, #dbr-pairs")) S.dbrAuto = false; }, true);
+  $("#btn-dbr-fromdesign").addEventListener("click", busy(() => { if (dbrFromDesign(true)) runDbr(); }, "Designing the DBR…"));
   $("#dbr-pairs-mode").addEventListener("change", plotDbr);
-  $("#dbr-role").addEventListener("change", () => { dbrRoleLabels(); renderDbrStructure(); });
+  $("#dbr-role").addEventListener("change", () => { dbrRoleLabels(); if (S.dbrAuto !== false && dbrFromDesign()) withBusy(() => runDbr()); else renderDbrStructure(); });
   dbrRoleLabels();
   $("#dbr-mode").addEventListener("change", plotDbr);
   $("#tab-dbr .legend-tog").addEventListener("change", plotDbr);
@@ -1080,6 +1086,49 @@ function initDbrTab() {
     t += `\npairs,R_at_lambda0\n` + D.R_vs_pairs.map((r, i) => `${i + 1},${r}`).join("\n") + "\n";
     download(`dbr_${$("#dbr-pairs").value}pairs.csv`, t);
   });
+}
+// Fill the DBR tab from the design: the mirror group for the chosen view (its two layers, pair count), the
+// cavity layer next to it and the exit medium, at λdesign. Used until the user edits the tab, and by "From design".
+function dbrLeaves(items, out = [], grp = null) {
+  for (const it of items) { if (it.kind === "group") dbrLeaves(it.children, out, grp || (it.role === "top_dbr" || it.role === "bottom_dbr" ? it : null)); else out.push({ L: it, g: grp }); }
+  return out;
+}
+function dbrFindGroup(items, role) {
+  for (const it of items) if (it.kind === "group") { if (it.role === role) return it; const g = dbrFindGroup(it.children, role); if (g) return g; }
+  return null;
+}
+function dbrSetMedium(k, L) {
+  const w = $(`.dbr-medium[data-k="${k}"]`); if (!w || !L) return;
+  const fixed = L.index_mode === "fixed" || L.material === "Generic";
+  w.querySelector(".dbr-mat").value = fixed ? "Generic" : L.material;
+  w.querySelector(".dbr-x").value = fixed ? (L.n_real ?? 3) : (L.x ?? 0);
+  w.querySelector(".dbr-y").value = L.y ?? 0;
+  dbrSyncX(w);
+}
+function dbrFromDesign(explicit = false) {
+  if (!S.design) return false;
+  const v = dbrView(); const role = v.up ? "top_dbr" : "bottom_dbr";
+  const g = dbrFindGroup(S.design.stack, role);
+  const kids = g ? g.children.filter((c) => c.kind !== "group") : [];
+  if (!g || kids.length !== 2 || g.children.length !== 2) {
+    if (explicit) toast(`The design has no ${v.up ? "top" : "bottom"} DBR group of two layers to copy (mark the mirror group's role as ${v.up ? "Top" : "Bottom"} DBR).`, true);
+    return false;
+  }
+  const leaves = dbrLeaves(S.design.stack);
+  const idx = leaves.map((x, i) => (x.g === g ? i : -1)).filter((i) => i >= 0);
+  // 1st layer = the one that touches the cavity: the top child of a bottom DBR, the bottom child of a top DBR
+  const [first, second] = v.up ? [kids[1], kids[0]] : [kids[0], kids[1]];
+  const cav = v.up ? leaves[idx[idx.length - 1] + 1]?.L : leaves[idx[0] - 1]?.L;
+  const inc = v.cavity ? cav : (v.up ? S.design.substrate : S.design.top);
+  const ext = v.up ? S.design.top : S.design.substrate;
+  dbrSetMedium("first", first); dbrSetMedium("second", second); dbrSetMedium("incident", inc || first); dbrSetMedium("exit", ext);
+  const lam = S.design.design_wavelength;
+  $("#dbr-lam").value = lam; $("#dbr-lam").dataset.good = lam;
+  $("#dbr-pairs").value = Math.min(Math.max(1, g.repeats | 0), DBR_MAX_PAIRS); $("#dbr-pairs").dataset.good = $("#dbr-pairs").value;
+  $("#dbr-min").value = Math.round(lam * 0.8); $("#dbr-max").value = Math.round(lam * 1.2);
+  $("#dbr-min").dataset.good = $("#dbr-min").value; $("#dbr-max").dataset.good = $("#dbr-max").value;
+  S.dbrAuto = true;
+  return true;
 }
 function dbrRoleLabels() {
   const v = dbrView();
