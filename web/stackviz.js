@@ -63,7 +63,7 @@ function diagramHTML(design, info, opts = {}) {
         style="height:${h.toFixed(1)}px;background:${bg};color:${fg}" title="${esc(it.name)} — ${esc(matText(it))}, ${fmt(ni.d, 5)} nm, n = ${fmt(ni.n, 5)}">
       <span class="dg-name">${subHTML(it.name)}</span>${tags}<span class="dg-meta">${(it.name || "").trim() === matText(it) ? "" : subHTML(matText(it)) + " · "}${fmt(ni.d, 4)} nm · n ${fmt(ni.n, 4)}</span></div>`;
   }).join("");
-  return `<div class="dg-wrap" style="padding-left:${maxD * LW}px">${bnd(design.top, "top", "exit medium", info?.top)}<div class="dg-stack" data-path="stack">${walk(design.stack, ["stack"])}</div>${bnd(design.substrate, "sub", "substrate", info?.substrate)}</div>`;
+  return `<div class="dg-wrap" style="padding-left:${maxD * LW}px">${bnd(design.top, "top", opts.labels?.[0] || "exit medium", info?.top)}<div class="dg-stack" data-path="stack">${walk(design.stack, ["stack"])}</div>${bnd(design.substrate, "sub", opts.labels?.[1] || "substrate", info?.substrate)}</div>`;
 }
 
 /* Full wafer to scale, every repeat expanded (thin strip next to the blocks). */
@@ -271,7 +271,7 @@ function setWide(on, render = true) {
 }
 
 /* ------------------------------------------------------------------ stack drawing for export (SVG / PNG) */
-function stackFigureSVG(design, info, title) {
+function stackFigureSVG(design, info, title, labels) {
   const nodes = info?.nodes || []; let k = 0;
   const depthOf = (items, d = 0) => items.reduce((m, it) => Math.max(m, it.kind === "group" ? depthOf(it.children, d + 1) : d), d);
   const maxD = depthOf(design.stack);
@@ -286,7 +286,7 @@ function stackFigureSVG(design, info, title) {
       <text x="${TX}" y="${y + 19}" font-size="13" ${F} fill="#333"><tspan font-style="italic">${subSVG(L.name)}</tspan> — ${txt}, ${subSVG(matText(L))}${n ? `, n = ${fmt(n.n, 5)}` : ""}</text>`);
     y += 30;
   };
-  bnd(design.top, "exit medium", info?.top);
+  bnd(design.top, labels?.[0] || "exit medium", info?.top);
   const walk = (items, depth) => items.forEach((it) => {
     if (it.kind === "group") {
       const y0 = y;
@@ -301,7 +301,7 @@ function stackFigureSVG(design, info, title) {
     }
   });
   walk(design.stack, 0);
-  bnd(design.substrate, "substrate", info?.substrate);
+  bnd(design.substrate, labels?.[1] || "substrate", info?.substrate);
   for (const b of brackets) {
     const x = BX - 10 - (maxD - 1 - b.depth) * LW; const xm = x - 8;
     out.push(`<path d="M${x} ${b.y0 + 1} H${xm} V${b.y1 - 1} H${x}" fill="none" stroke="#1f5fae" stroke-width="1.6"/>`);
@@ -315,9 +315,9 @@ function stackFigureSVG(design, info, title) {
 <defs><pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#fff"/><line x1="0" y1="0" x2="0" y2="8" stroke="#bbb" stroke-width="2"/></pattern></defs>
 <rect width="100%" height="100%" fill="#fff"/>${head}${out.join("\n")}</svg>`;
 }
-function exportStackFigure(design, info, fmtx, name) {
+function exportStackFigure(design, info, fmtx, name, labels) {
   const title = `${design.name || "Layer stack"} (λ design = ${design.design_wavelength} nm; groups drawn once, ×N = repeats)`;
-  const svg = stackFigureSVG(design, info, title);
+  const svg = stackFigureSVG(design, info, title, labels);
   if (fmtx === "svg") return download(`${name}_stack.svg`, svg, "image/svg+xml");
   const img = new Image(); const scale = 3;
   img.onload = () => {
@@ -397,13 +397,14 @@ function dbrDesign() {
   return { name: `${$("#dbr-pairs").value}-pair DBR at ${$("#dbr-lam").value} nm`, design_wavelength: +$("#dbr-lam").value,
     temperature: S.design?.temperature ?? 23, top: sp("incident"), substrate: sp("exit"), stack: [g], notes: "Made with the DBR design tab" };
 }
+const DBR_LABELS = ["incident medium", "exit medium"];
 function renderDbrStructure() {
   const host = $("#dbr-structure"); if (!host) return;
   const d = dbrDesign(); if (!d) { host.innerHTML = ""; return; }
   let info = null; try { info = call("node_info", JSON.stringify(d)); } catch (_) { /* */ }
   host.innerHTML = `<div class="dg-title">Layer structure <span class="dg-hint">(incident medium on top)</span>
       <button class="pb" data-dfig="png" title="Download a drawing of this mirror as PNG">PNG</button><button class="pb" data-dfig="svg" title="Download a drawing of this mirror as SVG">SVG</button></div>
-    <div class="dg-body small"><div class="dg-blocks">${diagramHTML(d, info, { editable: false })}</div><div class="dg-strip"></div></div>`;
+    <div class="dg-body small"><div class="dg-blocks">${diagramHTML(d, info, { editable: false, labels: DBR_LABELS })}</div><div class="dg-strip"></div></div>`;
   const strip = $(".dg-strip", host); strip.innerHTML = stripSVG(d, info, "", Math.max($(".dg-blocks", host).scrollHeight - 4, 120));
 }
 function initDbrExtras() {
@@ -411,7 +412,7 @@ function initDbrExtras() {
     const b = e.target.closest("[data-dfig]"); if (!b) return;
     const d = dbrDesign(); if (!d) return;
     let info = null; try { info = call("node_info", JSON.stringify(d)); } catch (_) { /* */ }
-    exportStackFigure(d, info, b.dataset.dfig, `dbr_${$("#dbr-pairs").value}pairs`);
+    exportStackFigure(d, info, b.dataset.dfig, `dbr_${$("#dbr-pairs").value}pairs`, DBR_LABELS);
   });
   $("#btn-dbr-layers").addEventListener("click", () => {
     const d = dbrDesign(); if (!d) return;

@@ -1085,6 +1085,9 @@ function plotDbr() {
     yaxis: lossP ? { type: "log", title: { text: "1 − R" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", exponentformat: "power" }
       : { type: "linear", title: { text: "R" }, range: [0, 1.02], showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5" },
     shapes: [{ type: "line", x0: +$("#dbr-pairs").value, x1: +$("#dbr-pairs").value, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],
+    // the curve runs to twice the chosen pairs (at least 40) so the approach to R = 1 is visible
+    annotations: [{ x: +$("#dbr-pairs").value, y: lossP ? 0.02 : 0.5, xref: "x", yref: "paper", text: `${$("#dbr-pairs").value} pairs (chosen)`,
+      showarrow: false, xanchor: "left", xshift: 4, font: { size: 11, color: "#495057" }, bgcolor: "rgba(255,255,255,0.8)" }],
   }, PLOT_CONFIG);
   renderDbrStructure();
 }
