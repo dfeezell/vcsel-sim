@@ -41,6 +41,52 @@ def _structure(design_json):
     return s
 
 
+def check_design(s, lam=None):
+    """Input checks. Returns a list of warnings; raises ValueError for inputs that have no physical meaning.
+    Errors: negative thickness or repeat count, a material model that is undefined at the wavelength.
+    Warnings: a composition outside the material's fitted range, a wavelength outside the model's range."""
+    lam = float(lam or s.design_wavelength)
+    warns, seen = [], set()
+
+    def layer_check(L, where):
+        if (L.thickness or 0) < 0:
+            raise ValueError(f"{where} '{L.name}' has a negative thickness ({L.thickness:g} {L.thickness_unit}).")
+        if L.index_mode == "fixed":
+            return
+        m = materials.MATERIALS.get(L.material)
+        if m is None:
+            raise ValueError(f"{where} '{L.name}': unknown material '{L.material}'.")
+        key = (L.material, float(L.x or 0), float(L.y or 0))
+        if key in seen:
+            return
+        seen.add(key)
+        n = complex(np.atleast_1d(materials.index(L.material, lam, L.x, L.y))[0])
+        if not np.isfinite(n.real):
+            raise ValueError(f"{where} '{L.name}': the {m['label']} model is undefined at {lam:g} nm "
+                             f"(the wavelength is at or above its band gap). Use a model that covers absorption.")
+        for v, lab, rng in ((L.x, m.get("x_label"), m.get("x_range")), (L.y, m.get("y_label"), m.get("y_range"))):
+            if lab and rng and not (rng[0] - 1e-9 <= float(v or 0) <= rng[1] + 1e-9):
+                warns.append(f"{L.name}: {lab.split()[0]} = {float(v or 0):g} is outside the {m['label']} model's range "
+                             f"({rng[0]:g}-{rng[1]:g}); the index is extrapolated.")
+        vr = m.get("valid_nm")
+        if vr and not (vr[0] <= lam <= vr[1]):
+            warns.append(f"{L.name}: {lam:g} nm is outside the {m['label']} model's range ({vr[0]:g}-{vr[1]:g} nm); "
+                         f"the index is extrapolated.")
+
+    def walk(items):
+        for it in items:
+            if getattr(it, "kind", "layer") == "group":
+                if int(it.repeats) < 0:
+                    raise ValueError(f"Group '{it.name}' has a negative repeat count.")
+                walk(it.children)
+            else:
+                layer_check(it, "Layer")
+    layer_check(s.top, "Exit medium")
+    layer_check(s.substrate, "Substrate")
+    walk(s.stack)
+    return warns
+
+
 def ok(payload):
     return json.dumps({"ok": True, **_clean(payload)})
 
@@ -78,13 +124,22 @@ def run_analysis(design_json, options_json="{}"):
     try:
         s = _structure(design_json)
         o = json.loads(options_json or "{}")
+        warns = check_design(s)
         a = laser.analyze(s, lam_guess=o.get("lambda_guess"), normalize=o.get("normalize", "bottom"),
                           spacing_passive=float(o.get("spacing_passive", 2.0)),
                           spacing_active=float(o.get("spacing_active", 0.1)),
                           internal_efficiency=float(o.get("internal_efficiency", 1.0)),
-                          rt_model=o.get("rt_model", "exact"))
+                          rt_model=o.get("rt_model", "exact"),
+                          confinement_model=o.get("confinement_model", "dispersive"))
+        if not a.converged:
+            raise ValueError("The threshold solver did not converge for this structure, so no results are shown. "
+                             "Check for layers with very large absorption, or mirrors with almost no reflectance.")
         prof = a.field
         res = a.summary()
+        if a.threshold_gain < 0:
+            warns.append("The threshold gain is negative: the structure has net gain without pumping the wells "
+                         "(a passive layer with negative absorption?). Efficiencies and losses are not meaningful.")
+        res["warnings"] = warns
         try:
             res["cavity"] = cavity.cavity_report(laser.Model(s), a)
         except Exception as e:                       # never let the extra report break the analysis
@@ -108,6 +163,7 @@ def sweep_point(design_json, options_json="{}"):
     try:
         s = _structure(design_json)
         o = json.loads(options_json or "{}")
+        check_design(s)                                   # errors only; warnings are shown by the Results tab
         tuned = None
         if o.get("retune"):
             # keep the cavity on the design wavelength: re-tune the marked layers (or the cavity spacers),
@@ -133,7 +189,10 @@ def sweep_point(design_json, options_json="{}"):
             o["lambda_guess"] = s.design_wavelength
         a = laser.analyze(s, lam_guess=o.get("lambda_guess"), normalize="bottom", spacing_passive=50.0,
                           spacing_active=1.0, internal_efficiency=float(o.get("internal_efficiency", 1.0)),
-                          rt_model=o.get("rt_model", "exact"))
+                          rt_model=o.get("rt_model", "exact"),
+                          confinement_model=o.get("confinement_model", "dispersive"))
+        if not a.converged:
+            raise ValueError("threshold solver did not converge")
         r = a.summary()
         out = {k: r.get(k) for k in SWEEP_KEYS}
         flat = s.flatten()
@@ -249,7 +308,8 @@ def retarget_design(design_json, options_json="{}"):
         def brief(st, guess):
             try:
                 a = laser.analyze(st, lam_guess=guess, normalize="bottom", spacing_passive=50.0, spacing_active=1.0,
-                                  rt_model=o.get("rt_model", "exact"))
+                                  rt_model=o.get("rt_model", "exact"),
+                                  confinement_model=o.get("confinement_model", "dispersive"))
                 r = a.summary()
                 return {k: r.get(k) for k in ("wavelength", "threshold_gain", "modal_gain", "slope_top", "confinement", "converged")}
             except Exception as e:  # e.g. no active layer

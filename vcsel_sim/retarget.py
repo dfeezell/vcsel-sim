@@ -83,6 +83,9 @@ def tune_layers(structure: Structure, layers, target=None, tol=1e-6, maxit=40, s
     so the cavity stays on the same longitudinal order (a factor far from it can land one half-wave longer)."""
     from .laser import Model, cold_cavity_mode
     target = float(target or structure.design_wavelength)
+    if not layers:
+        return {"scale": 1.0, "resonance": float("nan"), "converged": False, "iterations": 0, "layers": [],
+                "error": "no layers to tune"}
     base = [(L, L.thickness) for L in layers]
 
     def resonance(scale):

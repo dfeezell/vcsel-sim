@@ -495,6 +495,13 @@ register("Pt", lambda lam, x=0, y=0: _table(T.PT, lam), "Pt", "Metals",
          default_type="metal")
 
 
+# tabulated materials: their valid range is the table's range (np.interp holds the end value outside it)
+for _k, _tab in (("Ta2O5", T.TA2O5), ("TiO2", T.TIO2), ("Nb2O5", T.NB2O5), ("Al2O3_film", T.AL2O3_FILM), ("Au", T.AU),
+                 ("Ag", T.AG), ("Ti", T.TI), ("Cr", T.CR), ("Pt", T.PT)):
+    if MATERIALS[_k].get("valid_nm") is None:
+        MATERIALS[_k]["valid_nm"] = (float(min(_tab[0])) * 1000, float(max(_tab[0])) * 1000)
+
+
 def index(material, lam, x=0.0, y=0.0):
     if material not in MATERIALS:
         raise KeyError(f"Unknown material '{material}'")

@@ -13,7 +13,7 @@ function rtPreview() {
   const lam = parseFloat($("#rt-new").value);
   if (!(lam >= 100 && lam <= 20000)) { toast("Enter a wavelength between 100 nm and 20 µm", true); return; }
   const o = { wavelength: lam, keep_active: $("#rt-keep-active").checked, keep_metal: $("#rt-keep-metal").checked,
-    tune: $("#rt-tune").checked, rt_model: $("#rt-model").value, lambda_guess: S.analysis?.results?.wavelength };
+    tune: $("#rt-tune").checked, rt_model: $("#rt-model").value, confinement_model: $("#gamma-model").value, lambda_guess: S.analysis?.results?.wavelength };
   let r;
   try { r = call("retarget_design", designJSON(), JSON.stringify(o)); } catch (e) { $("#rt-out").innerHTML = `<ul class="rt-chk"><li class="error">${esc(e.message)}</li></ul>`; return; }
   RT.result = r;

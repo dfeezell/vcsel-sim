@@ -332,3 +332,35 @@ def test_alinn_and_sapphire():
     assert 0.2 < n("GaN", 450) - n("AlInN", 450, 0.82) < 0.35               # lattice-matched Al0.82In0.18N/GaN contrast
     assert abs(m.eg_alinn(0.0) - 0.65) < 1e-12 and abs(m.eg_alinn(1.0) - 6.015) < 1e-12
     assert abs(n("Sapphire_c", 450) - n("Al2O3", 450)) < 1e-12 and 1.77 < n("Sapphire_c", 450) < 1.79
+
+
+def test_threshold_stable_for_very_high_reflectance_mirrors():
+    from vcsel_sim import laser, templates
+    g = []
+    for n in (60, 80, 140):
+        s = templates.gaas_980(); s.stack[0].repeats = n
+        a = laser.analyze(s)
+        assert a.converged
+        assert abs(a.rt_gain - a.rt_loss - a.rt_transmission) < 1e-9 * a.rt_gain     # energy balance
+        g.append(a.threshold_gain)
+    assert max(g) - min(g) < 0.01 and abs(g[-1] - 289.3304) < 0.01                  # top mirror loss -> 0
+
+
+def test_confinement_weighting_option():
+    from vcsel_sim import laser, templates
+    s = templates.gaas_980()
+    a = laser.analyze(s)                                       # dispersive default
+    b = laser.analyze(s, confinement_model="nondispersive")
+    assert abs(a.threshold_gain - b.threshold_gain) < 1e-9 and abs(b.confinement - 0.031323) < 1e-5
+    assert abs(a.confinement / b.confinement - 1.038) < 0.002
+
+
+def test_design_checks():
+    import json
+    from vcsel_sim import api, templates
+    s = templates.gaas_980(); s.stack[1].thickness = -0.1
+    assert "negative thickness" in json.loads(api.run_analysis(json.dumps(s.to_dict())))["error"]
+    s = templates.gaas_980(); s.stack[0].children[1].x = 1.5
+    assert any("outside" in w for w in json.loads(api.run_analysis(json.dumps(s.to_dict())))["results"]["warnings"])
+    s = templates.gaas_980(); s.stack[2].children[1].thickness = 0
+    assert "zero thickness" in json.loads(api.run_analysis(json.dumps(s.to_dict())))["error"]

@@ -93,7 +93,8 @@ REFS = {
     ("P", "p"): "Casey & Carter, Appl. Phys. Lett. 44, 82 (1984); Henry et al., IEEE JQE 19, 947 (1983)",
     ("N", "n"): "Kioupakis et al., Appl. Phys. Express 3, 082101 (2010), E ⊥ c; matches Pimputkar et al., "
                 "J. Cryst. Growth 432, 49 (2015)",
-    ("N", "p", "sizov"): "Sizov et al., J. Appl. Phys. 113, 203108 (2013): ~1e-17 cm² per activated Mg (measured)",
+    ("N", "p", "sizov"): "Sizov et al., J. Appl. Phys. 113, 203108 (2013): ~1e-17 cm² per Mg atom in an activated "
+                         "(hydrogen-free, annealed) layer, measured; most Mg stays un-ionized, so N is the Mg concentration",
     ("N", "p", "kioupakis"): "Kioupakis et al., Appl. Phys. Express 3, 082101 (2010): free + Mg-bound holes, "
                              "E ⊥ c (first principles)",
 }

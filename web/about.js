@@ -26,8 +26,9 @@ Locally, the absorbed power density is <span class="eq">p(z) = α n |E(z)|²</sp
 Every term is divided by the one-way power flux in the active layers, P<sub>ref</sub> = n<sub>a</sub>(|A|²+|B|²)/2, to give the “round-trip” fractions:</p>
 <span class="eq">RT gain = 2 g<sub>th</sub> L<sub>a</sub> Γ<sub>enh</sub> = RT internal loss + RT transmission (top + bottom)</span>
 <p>Here Γ<sub>enh</sub> = ⟨|E|²⟩<sub>active</sub> / (|A|²+|B|²) is the gain enhancement factor. It is the standing-wave overlap with the wells relative to the local
-mean, and is 2 for a thin well at an antinode. The longitudinal confinement factor is energy-weighted,
-<span class="eq">Γ = ∫<sub>active</sub> n²|E|² dz / ∫<sub>stack</sub> n²|E|² dz</span>
+mean, and is 2 for a thin well at an antinode. The longitudinal confinement factor is the share of the stored energy in the active layers, by default with the dispersive energy density (the one the photon lifetime uses),
+<span class="eq">Γ = ∫<sub>active</sub> n n<sub>g</sub>|E|² dz / ∫<sub>stack</sub> n n<sub>g</sub>|E|² dz</span>
+(the Γ weighting option on the Results tab switches to the non-dispersive n²|E|² form; g<sub>th</sub>, λ and the efficiencies do not change).
 This defines the energy length L<sub>E</sub> = Γ<sub>enh</sub> L<sub>a</sub>/Γ, the length that makes Γ = Γ<sub>enh</sub>L<sub>a</sub>/L exact. It is not the Coldren effective cavity length L<sub>cav</sub> + L<sub>pen,1</sub> + L<sub>pen,2</sub> (shown separately); it changes, for example, when the active region grows into regions of different index. The per-length losses use L = L<sub>E</sub>:
 <span class="eq">α<sub>i</sub> = −ln(1 − RT loss) / 2L,   α<sub>m</sub> = (1/2L) ln[1/((1 − T<sub>up</sub>)(1 − T<sub>down</sub>))]   (exact, default)<br>α<sub>i</sub> = RT loss / 2L,   α<sub>m</sub> = RT transmission / 2L,   Γ g<sub>th</sub> = α<sub>i</sub> + α<sub>m</sub>   (linear, as Vertical)</span>
 The linear forms are the definitions in the course notes (“Vertical Gain and Loss Definitions”), with R<sub>up/down</sub> = exp(−RT transmission up/down); the exact forms use R<sub>up/down</sub> = 1 − RT transmission up/down. The photon lifetime is the stored energy, (ε<sub>0</sub>/2)∫ n n<sub>g</sub> |E|² dz with the group index n<sub>g</sub> of each layer, divided by the power lost to absorption and output. In both cases
@@ -153,7 +154,7 @@ depends on the doping: about 0.7×10⁻¹⁸ cm² at 1.55 µm and 10¹⁸ cm⁻�
 <li><b>GaN, AlGaN, InGaN, AlInN, AlN</b> (the alloys take the GaN values, an estimate): electrons use the phonon-assisted cross-section of E. Kioupakis, P. Rinke and C. G. Van de Walle, Appl. Phys. Express 3, 082101 (2010)
 (Table I fit, 380–680 nm, light polarized in the c-plane), about 0.6×10⁻¹⁸ cm² at 450 nm, which matches the measurement of S. Pimputkar et al., J. Cryst. Growth 432, 49 (2015).
 In Mg-doped layers most of the loss is absorption by holes bound to activated Mg acceptors rather than by free holes, so enter the <b>Mg concentration</b> as the doping.
-Two values are offered: the measurement of D. Sizov, R. Bhat and C. Zah, J. Appl. Phys. 113, 203108 (2013), about 1×10⁻¹⁷ cm² per activated Mg, weakly dependent on wavelength
+Two values are offered: the measurement of D. Sizov, R. Bhat and C. Zah, J. Appl. Phys. 113, 203108 (2013), about 1×10⁻¹⁷ cm² per Mg atom in an annealed (activated, hydrogen-free) layer, where most Mg stays un-ionized, so it multiplies the Mg concentration; weakly dependent on wavelength
 and temperature and isotropic (default), and the first-principles free + bound hole cross-section of Kioupakis et al. (2010) (0.9×10⁻¹⁸ cm² at 450 nm), about ten times smaller.</li>
 <li><b>AlGaInP</b>: estimate only (no direct measurement found), interpolated between the binaries as is common for this alloy. Electrons: between the GaAs value
 (Casey, scaled by (λ/870 nm)²) at x = 0 and n-GaP at x = 0.51, linear in x/0.51. The GaP value is from W. G. Spitzer et al., J. Phys. Chem. Solids 11, 339 (1959), 295 K:

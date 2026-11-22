@@ -7,7 +7,7 @@
 <meta name="description" content="Browser-based 1D transfer-matrix VCSEL design tool: layer stacks, threshold gain, standing-wave field, mirror reflectance.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="web/app.css?v=3.35">
+<link rel="stylesheet" href="web/app.css?v=3.36">
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 </head>
@@ -218,6 +218,8 @@
       <div class="plot-opts">
         <label title="How round-trip fractions are turned into losses per length and mirror reflectances">Round trip → per length
           <select id="rt-model"><option value="exact" selected>Exact, exponential</option><option value="linear">Linear, small-argument (as Vertical)</option></select></label>
+        <label title="Energy weighting of the confinement factor Γ (and so of L_E, α_i and α_m per length). Dispersive is consistent with the photon lifetime and the rate equations; n² ignores material dispersion (common textbook form, as Vertical).">Γ weighting
+          <select id="gamma-model"><option value="dispersive" selected>Dispersive: n × group index</option><option value="nondispersive">Non-dispersive: n² (as Vertical)</option></select></label>
         <label><input type="checkbox" id="res-vertical"> Show Vertical-convention column</label>
         <label><span>Internal efficiency η<sub>i</sub></span> <input type="number" id="eta-i" value="1" min="0" max="1" step="0.01"></label>
         <span class="spacer"></span>
@@ -272,11 +274,11 @@
 </dialog>
 <div id="toast" class="toast"></div>
 
-<script src="web/about.js?v=3.35"></script>
-<script src="web/stackviz.js?v=3.35"></script>
-<script src="web/app.js?v=3.35"></script>
-<script src="web/editor.js?v=3.35"></script>
-<script src="web/sweep.js?v=3.35"></script>
-<script src="web/retarget.js?v=3.35"></script>
+<script src="web/about.js?v=3.36"></script>
+<script src="web/stackviz.js?v=3.36"></script>
+<script src="web/app.js?v=3.36"></script>
+<script src="web/editor.js?v=3.36"></script>
+<script src="web/sweep.js?v=3.36"></script>
+<script src="web/retarget.js?v=3.36"></script>
 </body>
 </html>

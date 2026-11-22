@@ -217,14 +217,15 @@ function runAnalysis(explicit = true) {
     if (explicit) toast("No active layer: set Layer type = active on the quantum wells to compute threshold.", true);
     return;
   }
-  const opts = { normalize: $("#f-norm").value, internal_efficiency: parseFloat($("#eta-i").value) || 1, rt_model: $("#rt-model").value,
+  const opts = { normalize: $("#f-norm").value, internal_efficiency: parseFloat($("#eta-i").value) || 1, rt_model: $("#rt-model").value, confinement_model: $("#gamma-model").value,
     spacing_passive: Math.max(parseFloat($("#f-sp-p").value) || 1, 0.01), spacing_active: Math.max(parseFloat($("#f-sp-a").value) || 0.02, 0.001) };
   try {
     const t0 = performance.now();
     S.analysis = call("run_analysis", designJSON(), JSON.stringify(opts));
     S.profile = S.analysis.profile;
     S.analysis.ms = performance.now() - t0;
-    if (!S.analysis.results.converged) toast("Threshold solver did not fully converge; check the structure.", true);
+    const W = S.analysis.results.warnings || [];
+    if (W.length) toast(W.slice(0, 3).join(" ") + (W.length > 3 ? ` (+${W.length - 3} more)` : ""), true, 9000);
   } catch (e) { S.analysis = null; toast(e.message, true); try { S.profile = call("index_profile", designJSON()); } catch (_) { /* */ } }
   plotField(); renderResults(); renderFoot();
 }
@@ -816,7 +817,7 @@ const RES = [
   ["Confinement", [
     ["active_thickness", "Active thickness L<sub>a</sub>", "nm", "sum of active layers", "active thickness (nm)"],
     ["enhancement", "Gain enhancement Γ<sub>enh</sub>", "", "⟨|E|²⟩ over active ÷ local standing-wave mean", "gain enhancement"],
-    ["confinement", "Confinement Γ (energy-weighted)", "", "∫<sub>a</sub> n²|E|² ÷ ∫<sub>stack</sub> n²|E|²; the course-notes Γ = Γ<sub>enh</sub>L<sub>a</sub>/L is further up"],
+    ["confinement", "Confinement Γ (energy-weighted)", "", "share of the stored energy in the active layers: ∫<sub>a</sub> n n<sub>g</sub>|E|² ÷ ∫<sub>stack</sub> n n<sub>g</sub>|E|² (dispersive, default) or the same with n² (Γ weighting option above); the course-notes Γ = Γ<sub>enh</sub>L<sub>a</sub>/L is further up"],
     ["effective_length", "Energy length L<sub>E</sub> = Γ<sub>enh</sub>L<sub>a</sub>/Γ", "nm", "the length that makes Γ = Γ<sub>enh</sub>L<sub>a</sub>/L exact with the energy-weighted Γ; the per-length losses below use it. Not the Coldren effective cavity length (Mirrors section)"],
     ["@L_cav_between", "Cavity length (between the DBRs)", "nm", "physical thickness of all layers between the Top DBR and Bottom DBR groups"],
     ["@cavity_optical_waves", "Cavity optical thickness", "λ", "Σ n d / λ<sub>las</sub> over the layers between the DBR groups (1 = one-wavelength cavity)"]]],
@@ -893,9 +894,10 @@ function renderResults() {
 $("#res-vertical").addEventListener("change", renderResults);
 $("#results").addEventListener("click", (e) => { if (e.target.closest(".course-toggle")) { S.showCourse = !S.showCourse; renderResults(); } });
 $("#rt-model").addEventListener("change", () => { runAnalysis(false); persistOpts(); });
+$("#gamma-model").addEventListener("change", () => { runAnalysis(false); persistOpts(); });
 ["#f-sp-p", "#f-sp-a"].forEach((sel) => $(sel).addEventListener("change", () => { runAnalysis(false); persistOpts(); }));
-function persistOpts() { try { localStorage.setItem("vcsel-sim-opts-v2", JSON.stringify({ rt: $("#rt-model").value, sp: $("#f-sp-p").value, sa: $("#f-sp-a").value })); } catch (_) { /* */ } }
-(function restoreOpts() { try { const o = JSON.parse(localStorage.getItem("vcsel-sim-opts-v2") || "null"); if (o) { $("#rt-model").value = o.rt || "exact"; $("#f-sp-p").value = o.sp || 1; $("#f-sp-a").value = o.sa || 0.02; } } catch (_) { /* */ } })();
+function persistOpts() { try { localStorage.setItem("vcsel-sim-opts-v2", JSON.stringify({ rt: $("#rt-model").value, gm: $("#gamma-model").value, sp: $("#f-sp-p").value, sa: $("#f-sp-a").value })); } catch (_) { /* */ } }
+(function restoreOpts() { try { const o = JSON.parse(localStorage.getItem("vcsel-sim-opts-v2") || "null"); if (o) { $("#rt-model").value = o.rt || "exact"; $("#gamma-model").value = o.gm || "dispersive"; $("#f-sp-p").value = o.sp || 1; $("#f-sp-a").value = o.sa || 0.02; } } catch (_) { /* */ } })();
 
 /* ------------------------------------------------------------------ layer table */
 function renderLayerTable() {

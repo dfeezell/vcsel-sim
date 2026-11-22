@@ -116,15 +116,40 @@ def _A0_complex(model: Model, lam_c, ns):
     return complex(A0[0]), complex(B0[0])
 
 
+def _plane(model: Model):
+    """Reference plane for the round-trip condition: the top of the first active layer (else mid-stack)."""
+    act = np.where(model.active)[0]
+    return int(act[0]) if len(act) else len(model.d) // 2
+
+
+def round_trip_mismatch(model: Model, lam_c, ns, plane=None):
+    """1 - r_up r_down at the top of flat layer `plane`, where r_up / r_down are the reflections of everything
+    above / below that plane seen from inside it. Zero exactly when the structure has only outgoing waves
+    (the same condition as A0 = 0), but each reflection is computed by propagating from its own exit medium
+    toward the plane, the numerically stable direction, so it stays accurate for mirrors of any reflectance."""
+    j = _plane(model) if plane is None else plane
+    lam1 = np.atleast_1d(np.asarray(lam_c, dtype=complex))
+    d = list(model.d)
+    nj = ns[j + 1]
+    up_n = [nj] + [ns[k + 1] for k in range(j - 1, -1, -1)] + [ns[0]]
+    up_d = [d[k] for k in range(j - 1, -1, -1)]
+    dn_n = [nj] + [ns[k + 1] for k in range(j, len(d))] + [ns[-1]]
+    dn_d = d[j:]
+    r_up = tmm.reflection_from_top(up_n, up_d, lam1)[0]
+    r_dn = tmm.reflection_from_top(dn_n, dn_d, lam1)[0]
+    return complex(1.0 - r_up[0] * r_dn[0])
+
+
 def cold_cavity_mode(model: Model, lam_guess, gain=0.0, maxit=60):
     """Quasi-normal mode: complex wavelength at which the structure (indices frozen at
-    Re(lambda)) has only outgoing waves, i.e. the zero of A0(lambda). Newton in the complex plane."""
+    Re(lambda)) has only outgoing waves, i.e. the zero of 1 - r_up r_down. Newton in the complex plane."""
     lam = complex(lam_guess)
     ns = model.indices(lam.real, gain)
+    pl = _plane(model)
     for _ in range(maxit):
-        f, _ = _A0_complex(model, lam, ns)
+        f = round_trip_mismatch(model, lam, ns, pl)
         h = 1e-7 * abs(lam)
-        df = (_A0_complex(model, lam + h, ns)[0] - f) / h
+        df = (round_trip_mismatch(model, lam + h, ns, pl) - f) / h
         if df == 0:
             break
         step = -f / df
@@ -136,26 +161,112 @@ def cold_cavity_mode(model: Model, lam_guess, gain=0.0, maxit=60):
     return lam
 
 
+def _mode_at_gain(model: Model, lam_start, g, maxit=8):
+    """Quasi-normal mode with material gain g in the active layers, the indices evaluated at Re(lambda)
+    (re-evaluated until Re(lambda) stops moving, so dispersion is included)."""
+    lam = complex(lam_start)
+    for _ in range(maxit):
+        new = cold_cavity_mode(model, lam, gain=g)
+        if abs(new.real - lam.real) < 1e-12 * abs(lam):
+            return new
+        lam = new
+    return lam
+
+
 def solve_threshold(model: Model, lam_guess=None, g_guess=None, tol=1e-12, maxit=60) -> ThresholdResult:
+    """Threshold = the material gain g at which the quasi-normal mode nearest the design wavelength becomes
+    real (Im lambda = 0): the structure then supports only outgoing waves at a real wavelength.
+
+    g is found by a secant / bisection search on Im lambda(g), which is close to linear in g. Each evaluation
+    is a 1D complex Newton on the incoming amplitude A0(lambda). This stays well conditioned however high the
+    mirror reflectance is (the earlier 2D Newton on A0(lambda, g) diverged once the mirror transmission fell
+    below ~1e-6). Falls back to that 2D Newton if the mode cannot be followed."""
     if not model.active.any():
         raise ValueError("The structure has no active layers (set Layer type = active on the quantum wells).")
+    if not (model.d[model.active] > 0).any():
+        raise ValueError("The active layers have zero thickness.")
     lam0 = model.s.design_wavelength if lam_guess is None else float(lam_guess)
-    # 1) cold-cavity quasi-normal mode nearest the design wavelength (complex Newton on A0)
     lamc = cold_cavity_mode(model, lam0)
     if not (abs(lamc.real - lam0) < 0.05 * lam0 and lamc.imag > 0):
-        # fallback: start from the deepest passive resonance dip near the design wavelength
         lam = find_resonance(model, center=lam0, span=0.06 * lam0, points=6001)
         lamc = cold_cavity_mode(model, lam)
-    lam = lamc.real
+    lamc = _mode_at_gain(model, lamc, 0.0)
     if g_guess is None:
-        nn, A, B = solve_field(model, lam, 0.0)
-        I = np.array([float(tmm.layer_intensity_integral(A[j], B[j], nn[j], model.d[j - 1], lam))
-                      for j in range(1, len(model.d) + 1)])
-        W = nn[1:-1].real ** 2 * I
-        gamma = float(np.sum(W[model.active]) / np.sum(W))
-        ng = float(np.sum(nn[1:-1].real * W) / np.sum(W))
-        alpha_tot = 4 * np.pi * ng * abs(lamc.imag) / lam ** 2 * 1e7   # cm^-1
-        g_guess = alpha_tot / max(gamma, 1e-6)
+        g_guess = _gain_guess(model, lamc)
+    try:
+        res = _threshold_qnm(model, lamc, float(g_guess), lam0)
+        if res is not None:
+            return res
+    except (FloatingPointError, ZeroDivisionError, ValueError, np.linalg.LinAlgError):
+        pass
+    return _solve_threshold_newton2d(model, lamc.real, g_guess, tol, maxit)
+
+
+def _gain_guess(model, lamc):
+    lam = lamc.real
+    nn, A, B = solve_field(model, lam, 0.0)
+    I = np.array([float(tmm.layer_intensity_integral(A[j], B[j], nn[j], model.d[j - 1], lam))
+                  for j in range(1, len(model.d) + 1)])
+    W = nn[1:-1].real ** 2 * I
+    gamma = float(np.sum(W[model.active]) / np.sum(W))
+    ng = float(np.sum(nn[1:-1].real * W) / np.sum(W))
+    alpha_tot = 4 * np.pi * ng * abs(lamc.imag) / lam ** 2 * 1e7   # cm^-1
+    return alpha_tot / max(gamma, 1e-6)
+
+
+def _threshold_qnm(model, lamc0, g0, lam0, maxit=60):
+    """Secant / bisection on f(g) = Im lambda(g) / Re lambda. Returns ThresholdResult or None."""
+    def f(g, start):
+        m = _mode_at_gain(model, start, g)
+        if not np.isfinite(m.real) or abs(m.real - lam0) > 0.05 * lam0:
+            raise ValueError("mode lost")
+        return m.imag / m.real, m
+
+    f0, m0 = f(0.0, lamc0)
+    g_a, f_a, m_a = 0.0, f0, m0
+    # Im lambda is nearly linear in g, so any reasonable second point works; the field-based guess is
+    # only trusted in a sane range (it degrades for extreme mirrors)
+    g1 = g0 if np.isfinite(g0) and 0 < g0 < 1e5 else 100.0
+    f1, m1 = f(g1, m0)
+    # bracket the root: Im lambda decreases as the gain rises
+    br = None
+    if f_a * f1 <= 0:
+        br = [(g_a, f_a, m_a), (g1, f1, m1)]
+    it = 0
+    gp, fp, mp = g_a, f_a, m_a
+    gc, fc, mc = g1, f1, m1
+    for it in range(1, maxit + 1):
+        if abs(fc) < 1e-15:
+            break
+        if fc != fp:
+            gn = gc - fc * (gc - gp) / (fc - fp)
+        else:
+            gn = gc * 2.0
+        if br is not None:
+            lo, hi = sorted([br[0][0], br[1][0]])
+            if not (lo < gn < hi):
+                gn = 0.5 * (lo + hi)
+        elif gn > 0 and gn > 20 * max(gc, 1.0):
+            gn = 20 * max(gc, 1.0)
+        fn, mn = f(gn, mc)
+        if br is not None:
+            br = [br[0], (gn, fn, mn)] if br[0][1] * fn <= 0 else [(gn, fn, mn), br[1]]
+        elif fc * fn <= 0:
+            br = [(gc, fc, mc), (gn, fn, mn)]
+        gp, fp, mp = gc, fc, mc
+        gc, fc, mc = gn, fn, mn
+        if abs(gc - gp) <= 1e-13 * max(abs(gc), 1.0):
+            break
+    conv = abs(fc) < 1e-13
+    if not conv:
+        return None
+    lam = mc.real
+    r = abs(round_trip_mismatch(model, lam, model.indices(lam, gc)))
+    return ThresholdResult(lam, gc, True, it, r)
+
+
+def _solve_threshold_newton2d(model: Model, lam_guess, g_guess, tol=1e-12, maxit=60) -> ThresholdResult:
+    lam = float(lam_guess)
     g = float(g_guess)
     # Newton on the incoming amplitude A0 itself (scaled by a fixed reference). A0 is an entire,
     # nearly linear function of (lambda, g) near threshold, whereas the ratio A0/B0 has a nearby pole
@@ -218,8 +329,22 @@ def solve_field(model: Model, lam, gain):
     ns = model.indices(lam, gain)
     lam1 = np.atleast_1d(lam)
     one = np.ones(1, dtype=complex)
-    tops = tmm.fields_up(ns, list(model.d), lam1, (one, ns[-1] * one))
+    d = list(model.d)
+    tops = tmm.fields_up(ns, d, lam1, (one, ns[-1] * one))
     L = len(model.d)
+    # Above the reference plane (top of the first active layer) the substrate-up propagation runs through the
+    # top mirror in its unstable direction: rounding errors grow ~1/T_top and swamp the field once the mirror
+    # transmits less than ~1e-10. There, propagate DOWN from the top medium instead (outgoing wave only,
+    # also the stable direction) and scale that solution to match E at the plane.
+    j = _plane(model)
+    if L and 0 < j:
+        dn = tmm.fields_down(ns, d, lam1, (one, -ns[0] * one))      # top medium: B = 1, A = 0
+        Ej = tops[j + 1][0]
+        Ed = dn[j + 1][0]
+        if np.all(np.abs(Ed) > 0):
+            sc = Ej / Ed
+            for k in range(0, j + 1):
+                tops[k] = (dn[k][0] * sc, dn[k][1] * sc)
     A = np.zeros(L + 2, dtype=complex)
     B = np.zeros(L + 2, dtype=complex)
     for j in range(L + 2):
@@ -307,6 +432,7 @@ class Analysis:
     matrix_vertical: tuple = ()           # same matrix in Vertical's sign convention (exp(+i w t))
     vertical: dict = field(default_factory=dict)   # quantities computed with Vertical's numerical conventions
     rt_model: str = "linear"              # how round-trip fractions were converted (see rt_to_per_length)
+    confinement_model: str = "dispersive" # energy weighting of Gamma: n n_g |E|^2 (dispersive) or n^2 |E|^2
     field: Optional[FieldProfile] = None
 
     def summary(self) -> dict:
@@ -338,7 +464,7 @@ def rt_to_reflectance(t, rt_model="linear"):
 
 def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="bottom",
             spacing_passive=2.0, spacing_active=0.1, internal_efficiency=1.0,
-            rt_model="linear", vertical_spacing=0.1) -> Analysis:
+            rt_model="linear", vertical_spacing=0.1, confinement_model="dispersive") -> Analysis:
     """Threshold + full analysis of a VCSEL structure (Vertical's 'Analysis' command).
 
     rt_model: "linear" converts round-trip fractions to per-length losses and mirror
@@ -378,7 +504,15 @@ def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="botto
     rt_t_top, rt_t_bot = flux_top / Pref, flux_bot / Pref
     rt_t = rt_t_top + rt_t_bot
 
-    W = nl.real ** 2 * I                                           # energy density ~ eps |E|^2
+    # group index of every layer (dispersive energy density (eps0/2) n n_g |E|^2), also used for the lifetime
+    dl = 1e-3 * lam
+    n_p = np.array([np.real(x[0]) for x in model.indices(lam + dl, g)])[inner]
+    n_m = np.array([np.real(x[0]) for x in model.indices(lam - dl, g)])[inner]
+    n_g = nl.real - lam * (n_p - n_m) / (2 * dl)
+    # Confinement factor = share of the mode's stored energy in the active layers. "dispersive" (default) uses
+    # the energy density n n_g |E|^2, consistent with the photon lifetime and with dN/dt = Gamma v_g g N;
+    # "nondispersive" uses eps|E|^2 = n^2|E|^2 (the common textbook form, which ignores dispersion).
+    W = (nl.real ** 2 if confinement_model == "nondispersive" else nl.real * n_g) * I
     gamma = float(np.sum(W[act]) / np.sum(W))
     Leff = enh * La / gamma
     Lcm = Leff * 1e-7
@@ -392,10 +526,6 @@ def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="botto
     # photon lifetime = stored energy / power leaving the mode (absorption + transmission), with the
     # dispersive energy density (eps0/2) n n_g |E|^2.  Gain is not a loss: active layers count only their
     # background absorption.  Agrees with the cold-cavity quasi-normal-mode decay rate when n_g = n.
-    dl = 1e-3 * lam
-    n_p = np.array([np.real(x[0]) for x in model.indices(lam + dl, g)])[inner]
-    n_m = np.array([np.real(x[0]) for x in model.indices(lam - dl, g)])[inner]
-    n_g = nl.real - lam * (n_p - n_m) / (2 * dl)
     bg = np.array([4 * np.pi * (f.layer.index(lam, 0.0).imag) / lam if act[j] else alpha_nm[j]
                    for j, f in enumerate(model.flat)], dtype=float)
     p_out = float(np.sum(bg * nl.real * I) + flux_top + flux_bot)
@@ -469,6 +599,7 @@ def analyze(structure: Structure, lam_guess=None, g_guess=None, normalize="botto
         enhancement=enh, active_thickness=La, confinement=gamma, effective_length=Leff,
         modal_gain=(gamma * g if rt_model != "exact" else a_i + a_mt + a_mb), alpha_i=a_i, alpha_m=a_mt + a_mb,
         alpha_m_top=a_mt, alpha_m_bottom=a_mb, R_top=R_t, R_bottom=R_b, rt_model=rt_model,
+        confinement_model=confinement_model,
         internal_efficiency=internal_efficiency, ext_eff=eta_t + eta_b, ext_eff_top=eta_t,
         ext_eff_bottom=eta_b, slope_top=eta_t * Eph, slope_bottom=eta_b * Eph, lifetime_ps=tau,
         normalization=normalize, peak_E2=peak, E2_active_max=float(prof.E2[act_pts].max()),

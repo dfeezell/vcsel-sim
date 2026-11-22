@@ -226,7 +226,7 @@ async function swRun() {
       if (L.layer_type === "active") toast("Active layers always use the manual α, so their doping changes nothing.", true, 6000);
       else if (!["n-type", "p-type"].includes(L.layer_type)) toast(`“${L.name}” is ${L.layer_type}: set its layer type to n- or p-type so α can follow the doping.`, true, 7000); }
   }
-  const opts = { internal_efficiency: parseFloat($("#eta-i").value) || 1, rt_model: $("#rt-model").value };
+  const opts = { internal_efficiency: parseFloat($("#eta-i").value) || 1, rt_model: $("#rt-model").value, confinement_model: $("#gamma-model").value };
   const retune = $("#sw-retune").checked;
   if (retune) {
     const paths = [...(SW.tune || [])].map((k) => JSON.parse(k));
