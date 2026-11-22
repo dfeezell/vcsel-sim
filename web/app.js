@@ -1004,6 +1004,11 @@ function dbrRoleLabels() {
   lbl("incident", v.cavity ? "Cavity side" : "Incident", v.cavity ? "The cavity layer next to the mirror; light arrives from here" : "Medium the light arrives from");
   lbl("first", "1st layer", v.cavity ? "The mirror layer that touches the cavity" : "The mirror layer that touches the incident medium");
   lbl("exit", v.cavity ? (v.up ? "Exit (top)" : "Exit (substrate)") : "Exit", v.up ? "Medium above the mirror" : "Medium below the mirror");
+  // a stand-alone mirror is an optical element of its own (filter, coating), not part of the VCSEL stack
+  const ins = $("#btn-dbr-insert"); ins.disabled = !v.cavity;
+  ins.title = v.cavity ? "Replaces the stack's existing " + (v.up ? "top" : "bottom") + " DBR group (or goes just " + (v.up ? "below the exit medium" : "above the substrate")
+    + " if there is none), with the 1st layer next to the cavity. Undo restores the old stack."
+    : "Stand-alone mirrors are not inserted into the VCSEL; choose Top DBR or Bottom DBR to insert. Save as design keeps a stand-alone mirror as its own file.";
 }
 function dbrSyncX(w) {
   const m = S.matByKey[w.querySelector(".dbr-mat").value]; const x = w.querySelector(".dbr-x");

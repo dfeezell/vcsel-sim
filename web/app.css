@@ -219,7 +219,8 @@ body.view-diagram .stack-diagram { display: flex; flex-direction: column; flex: 
 .dbr-medium b { font-weight: 500; color: var(--ink); }
 .dbr-medium select { max-width: 150px; }
 .dbr-medium input { width: 62px; }
-.dbr-bottom { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.3fr); gap: 12px; padding: 4px 12px; align-items: start; }
+.dbr-structure .dg-bnd .dg-meta { white-space: normal; }
+.dbr-bottom { display: grid; grid-template-columns: minmax(320px, 1.15fr) minmax(320px, 1.15fr); gap: 12px; padding: 4px 12px; align-items: start; }
 .dbr-pairs-plot { height: 300px; }
 @media (max-width: 1300px) { .dbr-bottom { grid-template-columns: 1fr; } }
 .note { color: var(--muted); font-size: 12px; padding: 0 14px 12px; margin: 0; }

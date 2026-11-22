@@ -63,7 +63,7 @@ The tab shows the spectrum, R at λ<sub>0</sub> (transfer matrix and analytic), 
 The <b>stopband</b> is the continuous band around λ<sub>0</sub> with R ≥ 99% (the usual VCSEL convention; the threshold can be changed). It is zero until the mirror reaches 99% and widens with more pairs toward the
 infinite-stack width (4λ<sub>0</sub>/π) arcsin[(n<sub>2</sub> − n<sub>1</sub>)/(n<sub>2</sub> + n<sub>1</sub>)], which is shown next to it.
 <b>Insert into stack</b> adds the mirror to the design. As <i>Bottom DBR</i> or <i>Top DBR</i> it replaces the stack's existing bottom or top mirror group (or goes directly above the substrate / below the exit medium if there is none);
-as a plain group it goes below the selected item. Undo restores the previous stack.</p>
+stand-alone mirrors (for designing a filter or coating on its own) are not inserted; use Save as design to keep one. Undo restores the previous stack.</p>
 <h3>Mirror reflectance</h3>
 <p>Reflectance spectra are computed for the <b>passive, as-grown</b> structure: active layers carry no gain. There is therefore no lasing pole and no
 huge spike at the cavity wavelength. “Top DBR (from cavity)” is the reflectance of everything above the cavity, seen from the cavity layer next to the mirror.
