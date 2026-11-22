@@ -189,7 +189,7 @@ document.addEventListener("keydown", (e) => {
   else if (k === "y" || (k === "z" && e.shiftKey)) { e.preventDefault(); histGo(1); }
 });
 function changed(rerun = true) {
-  S.dirty = true; snapshot();
+  S.dirty = true; S.refl = null; snapshot();          // spectra of the old design must not be exported or shown
   try { S.nodeInfo = call("node_info", designJSON()); } catch (e) { S.nodeInfo = null; toast(e.message, true); }
   renderStack(); renderProps(); persist();
   if (rerun) autoRun();
@@ -756,20 +756,21 @@ function plotRefl() {
     const base = { x: sp.wavelength, type: "scatter", mode: "lines", name: PART_LABEL[p], line: { color: PART_COLOR[p], width: 1.6 } };
     if (mode === "R" || mode === "both") traces.push({ ...base, y: sp.R, hovertemplate: "R = %{y:.6f}<extra>" + PART_LABEL[p] + "</extra>" });
     if (mode === "T") traces.push({ ...base, y: sp.T, hovertemplate: "T = %{y:.4g}<extra></extra>" });
+    if (mode === "logR") traces.push({ ...base, y: sp.R.map((r) => (r == null ? null : Math.max(r, 1e-12))), hovertemplate: "R = %{y:.4g}<extra>" + PART_LABEL[p] + "</extra>" });
     if (mode === "loss") traces.push({ ...base, y: sp.R.map((r) => (r == null ? null : Math.max(1 - r, 1e-12))), hovertemplate: "1−R = %{y:.4g}<extra></extra>" });
     if (mode === "phase" || mode === "both") traces.push({ ...base, y: sp.phase_deg, yaxis: mode === "both" ? "y2" : "y", showlegend: mode !== "both",
       line: { color: PART_COLOR[p], width: 1.2, dash: mode === "both" ? "dot" : "solid" }, hovertemplate: "φ = %{y:.2f}°<extra></extra>" });
   }
-  const yt = { R: "Reflectance R", T: "Transmission T", loss: "1 − R", phase: "Phase of r (deg)", both: "Reflectance R" }[mode];
+  const yt = { R: "Reflectance R", logR: "Reflectance R (log scale)", T: "Transmission T", loss: "1 − R", phase: "Phase of r (deg)", both: "Reflectance R" }[mode];
   const layout = {
     font: PLOT_FONT, margin: { l: 70, r: mode === "both" ? 70 : 24, t: 14, b: 56 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff", showlegend: legendOn("#tab-refl"),
     xaxis: { title: { text: "Wavelength (nm)" }, showline: true, mirror: true, linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false },
     yaxis: { title: { text: yt }, showline: true, mirror: mode !== "both", linecolor: "#444", ticks: "outside", gridcolor: "#eef1f5", zeroline: false,
-      type: mode === "loss" ? "log" : "linear", range: mode === "R" || mode === "both" ? [0, 1.02] : undefined, exponentformat: "power" },
+      type: mode === "loss" || mode === "logR" ? "log" : "linear", range: mode === "R" || mode === "both" ? [0, 1.02] : undefined, exponentformat: "power" },
     yaxis2: { title: { text: "Phase (deg, dotted)" }, overlaying: "y", side: "right", showgrid: false, range: [-180, 180], showline: true, linecolor: "#444", ticks: "outside" },
     // inside the axes, in a corner the curves rarely reach: R (and phase) plots upper left, outside the
     // stopband where the side lobes stay low; 1 − R and T plots lower left
-    legend: { x: 0.01, xanchor: "left", y: mode === "loss" || mode === "T" ? 0.02 : 0.98, yanchor: mode === "loss" || mode === "T" ? "bottom" : "top",
+    legend: { x: 0.01, xanchor: "left", y: mode === "loss" || mode === "T" || mode === "logR" ? 0.02 : 0.98, yanchor: mode === "loss" || mode === "T" || mode === "logR" ? "bottom" : "top",
       bgcolor: "rgba(255,255,255,0.88)", bordercolor: "#ced4da", borderwidth: 1, font: { size: 11.5 },
       title: { text: wrapLegend(`${esc(S.design.name || "Design")}, λ<sub>design</sub> = ${R.design_wavelength} nm`), font: { size: 11.5 } } },
     shapes: [{ type: "line", x0: R.design_wavelength, x1: R.design_wavelength, yref: "paper", y0: 0, y1: 1, line: { color: "#868e96", width: 1, dash: "dash" } }],

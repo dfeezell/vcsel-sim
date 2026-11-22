@@ -183,3 +183,24 @@ def test_B5_enhancement_factor():
             worst = max(worst, abs(a.enhancement - enh_an))
     print(f"\nB5 enhancement: max |Gamma_enh - (1 ± sin(kd)/kd)| = {worst:.1e}")
     assert worst < 1e-8
+
+
+# ---------------------------------------------------------------- spectral resolution of a high-Q dip
+def test_reflectance_grid_resolves_high_q_dip():
+    """A symmetric lossless lambda cavity between 25-pair DBRs has a transmission resonance ~1e-3 nm wide
+    at lambda_B with R = 0, far narrower than the default 0.15 nm grid step. The refined spectrum must
+    still find it, at its true depth and wavelength."""
+    lam0, nc, nH, nL = 980.0, 3.25, 3.52, 2.98
+    top = Group(name="top", repeats=25, role="top_dbr", children=[fixed("H", nH, lam0 / (4 * nH)), fixed("L", nL, lam0 / (4 * nL))])
+    bot = Group(name="bot", repeats=25, role="bottom_dbr", children=[fixed("L", nL, lam0 / (4 * nL)), fixed("H", nH, lam0 / (4 * nH))])
+    Lc = lam0 / nc
+    cav = [fixed("sp1", nc, Lc / 2 - 0.5), fixed("qw", nc, 1.0, typ="active"), fixed("sp2", nc, Lc / 2 - 0.5)]
+    s = Structure(name="hq", design_wavelength=lam0, top=medium(nH), substrate=medium(nH), stack=[top] + cav + [bot])
+    hi = 1.15 * lam0 + 0.07                                   # a range whose grid does not land on lambda_B
+    sp = laser.reflectance_spectrum(s, 0.85 * lam0, hi, 2001, "full_top")
+    near = np.abs(sp["wavelength"] - lam0) < 5                   # the dip, not the (also R = 0) side-lobe minima
+    i = int(np.nanargmin(np.where(near, sp["R"], np.inf)))
+    coarse = laser.reflectance_spectrum(s, 0.85 * lam0, hi, 2001, "full_top", refine=False)
+    print(f"\nhigh-Q dip: refined R_min = {sp['R'][i]:.1e} at {sp['wavelength'][i] - lam0:+.1e} nm from lambda_B; "
+          f"uniform grid alone: lowest R within 1 nm = {np.nanmin(np.where(abs(coarse['wavelength'] - lam0) < 1, coarse['R'], 1)):.3f}")
+    assert sp["R"][i] < 1e-4 and abs(sp["wavelength"][i] - lam0) < 1e-4

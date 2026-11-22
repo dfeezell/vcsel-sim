@@ -80,7 +80,7 @@
         <li>11. Mirror reflectance, stopband and graded interfaces</li>
         <li>12. Material models</li>
         <li>13. Absorption from doping</li>
-        <li>14. Validation against Vertical</li>
+        <li>14. Validation against Vertical and analytical checks</li>
         <li>15. Assumptions and limitations</li>
         <li>16. References</li>
       </ol></li>
@@ -193,7 +193,7 @@
   <li><b>Bottom DBR (from cavity)</b>: everything below the cavity, ending in the substrate.</li>
   <li><b>Whole wafer, from top / from substrate</b>: what a reflectometer measures. Where the incident medium itself absorbs strongly (a GaAs substrate below about 870 nm), reflectance seen from inside it is not defined and that part of the spectrum is left blank.</li>
 </ul>
-<p>Plot R, the phase of r, both, 1 − R on a log scale, or T. The legend is headed by the design name and λ<sub>design</sub> and is placed as described in Section 2.4. The spectra are for the passive, as-grown structure: the active layers carry no gain, so there is no lasing spike. The table gives, for each spectrum, R, phase and T at λ<sub>design</sub>, R<sub>max</sub> and its wavelength, and the <b>stopband</b>: the continuous band with R ≥ 99% (the threshold can be changed) around λ<sub>design</sub>, with its width and center. For whole-wafer spectra the narrow cavity dip is bridged.</p>
+<p>Plot R, the phase of r, both, R on a log scale (to see how deep a cavity dip goes), 1 − R on a log scale, or T. The wavelength grid is refined automatically: around the cavity resonance (±8 linewidths) and at every reflectance minimum the spectrum is sampled finely enough to give the dip its true depth and wavelength, even when the dip is far narrower than the grid step, so the exported CSV has a non-uniform wavelength column. The legend is headed by the design name and λ<sub>design</sub> and is placed as described in Section 2.4. The spectra are for the passive, as-grown structure: the active layers carry no gain, so there is no lasing spike. The table gives, for each spectrum, R, phase and T at λ<sub>design</sub>, R<sub>max</sub> and its wavelength, and the <b>stopband</b>: the continuous band with R ≥ 99% (the threshold can be changed) around λ<sub>design</sub>, with its width and center. For whole-wafer spectra the narrow cavity dip is bridged.</p>
 <div class="note">The top of a DBR stopband is very flat, so λ at R<sub>max</sub> can be several nm from λ<sub>design</sub> while R differs by only ~10⁻⁴. This is physical when the two mirror materials absorb differently (Section 11). Use the stopband center to judge where a mirror is centered.</div>
 <h2>4.3 DBR design</h2>
 <figure><img src="img/dbr.png"><div class="caption">Figure 5. DBR design tab: 20-pair Al<sub>0.90</sub>Ga<sub>0.10</sub>As/GaAs mirror seen from GaAs.</div></figure>
@@ -326,7 +326,7 @@ a = analyze(s); print(a.threshold_gain, a.wavelength)</p>
 </table>
 <div class="note">Limitations: cross-sections are room-temperature values; band-tail (near-edge) absorption of heavily doped layers is not included (in GaN this matters below about 420 nm); the AlGaInP values and the extrapolation of the n-InP data from 10 µm to the near infrared are estimates.</div>
 
-<h1>14. Validation against Vertical</h1>
+<h1>14. Validation against Vertical and analytical checks</h1>
 <p>For the ECE 577 final-project structure imported directly from its <code>.vrt</code> file, the simulator gives the same threshold gain and lasing wavelength as Vertical (2111.42 cm⁻¹ at 980.000 nm, with the file's stored top medium) and the transfer matrix agrees to 5–6 digits. The 980 nm template written with <i>Save for old Vertical</i> and run in Vertical gives g<sub>th</sub> = 444.143 cm⁻¹, identical to this program. GaN structures (405 nm, 369 nm and a tunnel-junction InGaN design) agree to 0.2–0.5% in g<sub>th</sub>.</p>
 <p>Vertical evaluates some quantities with simple numerical rules, which the <i>Vertical convention</i> column reproduces (to about 0.1%):</p>
 <ul>
@@ -335,6 +335,8 @@ a = analyze(s); print(a.threshold_gain, a.wavelength)</p>
   <li>it splits the transmission between top and bottom in proportion to |E|² at the boundaries, which ignores the different indices of the exit medium and substrate.</li>
 </ul>
 <p>The main <i>Value</i> column is the exact energy balance and should be used for new designs.</p>
+<h2>14.1 Analytical checks</h2>
+<p>Independently of Vertical, the engine is checked against exact closed-form results on every test run (<code>tests/test_benchmarks.py</code>), and <code>python -m vcsel_sim.verify</code> runs a stand-alone set of transfer-matrix checks and prints a pass/fail table. They cover: R + T = 1 for lossless stacks (to about 10⁻¹⁴), the Airy formula for lossless and absorbing etalons, the quarter-wave DBR reflectance ((1 − (n<sub>H</sub>/n<sub>L</sub>)<sup>2N</sup>n<sub>s</sub>/n<sub>0</sub>)/(1 + …))<sup>2</sup> and the stopband width, the zero-reflectance resonance of a symmetric λ or λ/2 cavity exactly at λ<sub>B</sub> with the |E|² antinode on the well, the exact threshold of a uniform gain slab, the photon lifetime n/(c g<sub>th</sub>), the energy balance, and the standing-wave enhancement 1 ± sin(kd)/(kd). All agree to between 10⁻¹⁶ and 10⁻⁹.</p>
 
 <h1>15. Assumptions and limitations</h1>
 <ul>

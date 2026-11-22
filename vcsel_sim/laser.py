@@ -42,8 +42,10 @@ class Model:
         self.flat: List[FlatLayer] = structure.flatten()
         self.d = np.array([f.thickness_nm for f in self.flat], dtype=float)
         self.active = np.array([f.layer.is_active for f in self.flat], dtype=bool)
-        self.z_top = np.concatenate([[0.0], np.cumsum(self.d)[:-1]]) if len(self.d) else np.zeros(0)
-        self.total_thickness = float(self.d.sum())
+        self.z_bot = np.cumsum(self.d) if len(self.d) else np.zeros(0)
+        self.z_top = np.concatenate([[0.0], self.z_bot[:-1]]) if len(self.d) else np.zeros(0)
+        # same cumulative sum for both, so a layer's bottom is bit-identical to the next layer's top
+        self.total_thickness = float(self.z_bot[-1]) if len(self.d) else 0.0
 
     def indices(self, lam, gain=0.0):
         lam = np.atleast_1d(np.asarray(lam, dtype=float))
@@ -376,7 +378,9 @@ def sample_field(model: Model, lam, nn, A, B, spacing_passive=2.0, spacing_activ
     for j in range(1, L + 1):
         sp = spacing_active if model.active[j - 1] else spacing_passive
         u, e2 = _layer_samples(model, lam, nn, A, B, j, sp)
-        zs.append(model.z_top[j - 1] + u); E2s.append(e2)
+        zz = model.z_top[j - 1] + u
+        zz[-1] = model.z_bot[j - 1]                      # exact interface position (no rounding step backwards)
+        zs.append(zz); E2s.append(e2)
         ns_.append(np.full(u.shape, nn[j].real)); idx.append(np.full(u.shape, j - 1))
     u = np.linspace(0.0, outside, max(int(outside / spacing_passive), 2))
     E = A[-1] * np.exp(1j * k[-1] * u)
@@ -661,16 +665,66 @@ def _sub_structure_arrays(model: Model, lam, part):
     return n_list, d_list, False, np.zeros(np.shape(lam), bool)
 
 
-def reflectance_spectrum(structure: Structure, lam_min, lam_max, points=1001, part="full_top"):
-    """Passive (as-grown, no gain) reflectance spectrum. Returns dict with arrays."""
-    model = Model(structure)
-    lam = np.linspace(float(lam_min), float(lam_max), int(points))
+def _eval_part(model, lam, part):
     n_list, d_list, from_bottom, bad = _sub_structure_arrays(model, lam, part)
-    if from_bottom:
-        r, t, R, T = tmm.reflection_from_bottom(n_list, d_list, lam)
-    else:
-        r, t, R, T = tmm.reflection_from_top(n_list, d_list, lam)
-    R, T, r = np.array(R, float), np.array(T, float), np.array(r, complex)
+    f = tmm.reflection_from_bottom if from_bottom else tmm.reflection_from_top
+    r, t, R, T = f(n_list, d_list, lam)
+    return np.array(r, complex), np.array(R, float), np.array(T, float), bad
+
+
+def _refine_points(model, lam, R, part, lo, hi):
+    """Extra wavelengths that resolve narrow features a uniform grid can miss or alias:
+    (1) a dense band of +-8 linewidths around the cold-cavity quasi-normal mode (a VCSEL dip can be far
+    narrower than the grid step, and may not even register as a grid minimum), and (2) every local
+    minimum of R on the grid, zoomed three times by 21-point sub-grids, so the plotted dip reaches its
+    true depth at its true wavelength."""
+    extra = []
+    step = (hi - lo) / max(len(lam) - 1, 1)
+    try:
+        lc = cold_cavity_mode(model, model.s.design_wavelength)
+        w = abs(lc.imag)
+        if np.isfinite(lc.real) and lo < lc.real < hi and 0 < w < 2 * step * len(lam):
+            half = max(8 * w, 2 * step)
+            extra.append(np.linspace(max(lo, lc.real - half), min(hi, lc.real + half), 321))
+    except Exception:
+        pass
+    if extra:
+        lam2 = np.unique(np.concatenate([lam] + extra))
+        R = _eval_part(model, lam2, part)[1]
+        lam = lam2
+    Rf = np.nan_to_num(R, nan=np.inf)
+    idx = np.where((Rf[1:-1] < Rf[:-2]) & (Rf[1:-1] <= Rf[2:]))[0] + 1
+    if len(idx) == 0 or len(idx) > 2000:
+        return extra
+    a, b = lam[idx - 1], lam[idx + 1]
+    for _ in range(3):
+        u = np.linspace(0.0, 1.0, 21)
+        grid = a[:, None] + (b - a)[:, None] * u[None, :]
+        Rg = _eval_part(model, grid.ravel(), part)[1].reshape(grid.shape)
+        extra.append(grid.ravel())
+        k = np.argmin(np.nan_to_num(Rg, nan=np.inf), axis=1)
+        k = np.clip(k, 1, 19)
+        rows = np.arange(len(k))
+        a, b = grid[rows, k - 1], grid[rows, k + 1]
+    return extra
+
+
+def reflectance_spectrum(structure: Structure, lam_min, lam_max, points=1001, part="full_top", refine=True,
+                         wavelengths=None):
+    """Passive (as-grown, no gain) reflectance spectrum. Returns dict with arrays.
+
+    With refine (default, when points > 1) the uniform grid is augmented near the cavity resonance and
+    at every reflectance minimum (see _refine_points), so the returned wavelength grid is non-uniform.
+    `wavelengths` evaluates exactly those points instead (no refinement)."""
+    model = Model(structure)
+    lo, hi = float(lam_min), float(lam_max)
+    lam = np.linspace(lo, hi, int(points)) if wavelengths is None else np.asarray(wavelengths, float)
+    r, R, T, bad = _eval_part(model, lam, part)
+    if refine and wavelengths is None and len(lam) > 2 and hi > lo:
+        extra = _refine_points(model, lam, R, part, lo, hi)
+        if extra:
+            lam = np.unique(np.concatenate([lam] + [e[(e >= lo) & (e <= hi)] for e in extra]))
+            r, R, T, bad = _eval_part(model, lam, part)
     # where the incident medium itself absorbs strongly (e.g. GaAs substrate below its band gap
     # wavelength) a reflectance seen from inside it is not defined: blank those points
     R[bad] = np.nan

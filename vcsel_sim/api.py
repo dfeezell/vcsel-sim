@@ -226,9 +226,17 @@ def reflectance(design_json, options_json="{}"):
         hi = float(o.get("lambda_max", lam0 + span / 2))
         parts = o.get("parts", ["full_top"])
         out = {}
+        # every spectrum on one common grid (the union of each part's refined grid), so CSV columns line up
+        grids = []
         for p in parts:
             try:
-                spec = laser.reflectance_spectrum(s, lo, hi, int(o.get("points", 2001)), p)
+                grids.append(laser.reflectance_spectrum(s, lo, hi, int(o.get("points", 2001)), p)["wavelength"])
+            except ValueError:
+                pass
+        common = np.unique(np.concatenate(grids)) if grids else None
+        for p in parts:
+            try:
+                spec = laser.reflectance_spectrum(s, lo, hi, int(o.get("points", 2001)), p, wavelengths=common)
                 st = laser.stopband(spec, float(o.get("threshold", 0.99)), lam0)
                 try:
                     at = laser.reflectance_spectrum(s, lam0, lam0, 1, p)
